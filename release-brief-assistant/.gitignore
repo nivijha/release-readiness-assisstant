@@ -1,6 +1,9 @@
 node_modules/
-/.env
-/.env.local
-/.env.*.local
-/dist/
-/build/
+./server/.env
+./client/.env.local
+./client/.env.*.local
+./client/dist/
+./client/build/
+client.log
+.vscode/
+*.env
