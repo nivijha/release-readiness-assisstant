@@ -1,7 +1,17 @@
 import React, { useState } from "react";
-import { api } from "../services/api";
 
-const ReleaseForm = ({ onValidate, onCreate }) => {
+const ReleaseForm = ({
+  validationResult,
+  createdRelease,
+  validationError,
+  createError,
+  isValidating,
+  isCreating,
+  isAnalyzing,
+  onValidate,
+  onCreate,
+  onAnalyze,
+}) => {
   const [formState, setFormState] = useState({
     version: "",
     title: "",
@@ -15,10 +25,6 @@ const ReleaseForm = ({ onValidate, onCreate }) => {
     affectedUserGroups: "",
   });
 
-  const [submitting, setSubmitting] = useState(false);
-  const [validationResult, setValidationResult] = useState(null);
-  const [isValidating, setIsValidating] = useState(false);
-
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormState((prev) => ({
@@ -27,50 +33,14 @@ const ReleaseForm = ({ onValidate, onCreate }) => {
     }));
   };
 
-  const handleValidate = async (e) => {
+  const handleValidate = (e) => {
     e.preventDefault();
-
-    setIsValidating(true);
-    setValidationResult(null);
-
-    try {
-      const response = await api.validateRelease(formState);
-      setValidationResult(response.validation);
-    } catch (error) {
-      setValidationResult({
-        isValid: false,
-        missingFields: ["api"],
-        completedFields: [],
-        totalRequired: 7,
-        completedCount: 0,
-      });
-    }
-
-    setIsValidating(false);
+    onValidate(formState);
   };
 
-  const handleCreate = async (e) => {
+  const handleCreate = (e) => {
     e.preventDefault();
-
-    if (submitting) return;
-
-    setSubmitting(true);
-
-    try {
-      const response = await api.createRelease(formState);
-      setValidationResult(null);
-      onCreate(response.release);
-    } catch (error) {
-      setValidationResult({
-        isValid: false,
-        missingField: ["api"],
-        completedFields: [],
-        totalRequired: 7,
-        completedCount: 0,
-      });
-    }
-
-    setSubmitting(false);
+    onCreate(formState);
   };
 
   return (
@@ -94,6 +64,7 @@ const ReleaseForm = ({ onValidate, onCreate }) => {
                 name="version"
                 value={formState.version}
                 onChange={handleChange}
+                disabled={Boolean(createdRelease) || isCreating}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="e.g., v2.4.0"
               />
@@ -108,6 +79,7 @@ const ReleaseForm = ({ onValidate, onCreate }) => {
                 name="title"
                 value={formState.title}
                 onChange={handleChange}
+                disabled={Boolean(createdRelease) || isCreating}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="e.g., Data Import Improvements"
               />
@@ -123,6 +95,7 @@ const ReleaseForm = ({ onValidate, onCreate }) => {
               name="releaseDate"
               value={formState.releaseDate}
               onChange={handleChange}
+              disabled={Boolean(createdRelease) || isCreating}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -138,6 +111,7 @@ const ReleaseForm = ({ onValidate, onCreate }) => {
             rows={3}
             value={formState.completedFeatures}
             onChange={handleChange}
+            disabled={Boolean(createdRelease) || isCreating}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-text placeholder-gray-400"
             placeholder="Describe the features completed in this release..."
           ></textarea>
@@ -151,6 +125,7 @@ const ReleaseForm = ({ onValidate, onCreate }) => {
             rows={3}
             value={formState.bugFixes}
             onChange={handleChange}
+            disabled={Boolean(createdRelease) || isCreating}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-text placeholder-gray-400"
             placeholder="Describe bugs fixed in this release..."
           ></textarea>
@@ -166,6 +141,7 @@ const ReleaseForm = ({ onValidate, onCreate }) => {
             rows={3}
             value={formState.changedBehaviour}
             onChange={handleChange}
+            disabled={Boolean(createdRelease) || isCreating}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-text placeholder-gray-400"
             placeholder="Describe behaviour that has changed..."
           ></textarea>
@@ -179,6 +155,7 @@ const ReleaseForm = ({ onValidate, onCreate }) => {
             rows={3}
             value={formState.qaSummary}
             onChange={handleChange}
+            disabled={Boolean(createdRelease) || isCreating}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-text placeholder-gray-400"
             placeholder="Describe testing performed, test results, regression testing, failures, etc."
           ></textarea>
@@ -194,6 +171,7 @@ const ReleaseForm = ({ onValidate, onCreate }) => {
             rows={3}
             value={formState.knownLimitations}
             onChange={handleChange}
+            disabled={Boolean(createdRelease) || isCreating}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-text placeholder-gray-400"
             placeholder="List known limitations or unresolved issues..."
           ></textarea>
@@ -209,6 +187,7 @@ const ReleaseForm = ({ onValidate, onCreate }) => {
             rows={3}
             value={formState.migrationNotes}
             onChange={handleChange}
+            disabled={Boolean(createdRelease) || isCreating}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-text placeholder-gray-400"
             placeholder="Describe required configuration or migration steps..."
           ></textarea>
@@ -224,6 +203,7 @@ const ReleaseForm = ({ onValidate, onCreate }) => {
             rows={3}
             value={formState.affectedUserGroups}
             onChange={handleChange}
+            disabled={Boolean(createdRelease) || isCreating}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-text placeholder-gray-400"
             placeholder="Describe which users/customers are affected..."
           ></textarea>
@@ -234,7 +214,7 @@ const ReleaseForm = ({ onValidate, onCreate }) => {
           <button
             type="button"
             onClick={handleValidate}
-            disabled={isValidating}
+            disabled={isValidating || isCreating || Boolean(createdRelease)}
             className="
               px-6 py-2.5 bg-blue-600 text-white font-medium rounded-md
               hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500
@@ -247,20 +227,29 @@ const ReleaseForm = ({ onValidate, onCreate }) => {
           <button
             type="button"
             onClick={handleCreate}
-            disabled={isValidating || !validationResult?.isValid}
+            disabled={
+              isValidating ||
+              isCreating ||
+              !validationResult?.isValid ||
+              Boolean(createdRelease)
+            }
             className="
               px-6 py-2.5 bg-green-600 text-white font-medium rounded-md
               hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500
               disabled:opacity-50 disabled:cursor-not-allowed
             "
           >
-            Create Release
+            {isCreating ? "Creating..." : "Create Release"}
           </button>
         </div>
       </form>
 
-      {/* Validation Result Display */}
-      {/* Validation Result Display */}
+      {validationError && (
+        <div role="alert" className="mt-6 p-4 rounded-md bg-red-100 text-red-800">
+          {validationError}
+        </div>
+      )}
+
       {validationResult && (
         <div
           className={`mt-6 p-4 rounded-md ${
@@ -277,10 +266,55 @@ const ReleaseForm = ({ onValidate, onCreate }) => {
 
           {!validationResult.isValid && (
             <p className="mt-1 text-sm">
-              Missing {validationResult.missingFields.length} of{" "}
+              Missing {(Array.isArray(validationResult.missingFields)
+                ? validationResult.missingFields
+                : []).length} of{" "}
               {validationResult.totalRequired} sections
             </p>
           )}
+        </div>
+      )}
+
+      {createdRelease && (
+        <div className="mt-6 p-4 rounded-bg bg-green-100 border-green-400">
+          <p className="font-medium">
+            ✅ Release created successfully
+          </p>
+          <p className="text-sm mt-1">
+            Version: {createdRelease.version || ""}
+            <br />
+            Release ID: {createdRelease.releaseId || ""}
+            <br />
+            Status: {createdRelease.status || ""}
+          </p>
+          <p className="text-xs mt-2 text-green-600">
+            The release is saved. Analyze it to generate AI-powered insights.
+          </p>
+          <button
+            type="button"
+            onClick={() => onAnalyze(formState)}
+            disabled={
+              !validationResult?.isValid ||
+              !createdRelease.releaseId ||
+              isAnalyzing
+            }
+            className="
+              mt-4 px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-md
+              hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500
+              disabled:opacity-50 disabled:cursor-not-allowed
+            "
+          >
+            {isAnalyzing ? "Analyzing Release..." : "Analyze Release"}
+          </button>
+        </div>
+      )}
+
+      {createError && (
+        <div className="mt-6 p-4 rounded-bg bg-red-100 border-red-400">
+          <p className="font-medium">
+            ❌ Failed to create release
+          </p>
+          <p className="text-sm mt-1">{createError}</p>
         </div>
       )}
     </div>

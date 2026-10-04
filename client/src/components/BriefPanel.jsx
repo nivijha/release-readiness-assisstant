@@ -5,25 +5,33 @@ const BriefPanel = ({ analysis }) => {
   const [stakeholderEdited, setStakeholderEdited] = useState(false);
 
   const internalSummary =
-    analysis?.internalSummary?.text || "No internal summary available.";
+    typeof analysis?.internalSummary?.text === "string"
+      ? analysis.internalSummary.text
+      : "";
   const stakeholderSummary =
-    analysis?.stakeholderSummary?.text || "No stakeholder summary available.";
-  const internalEvidence =
-    analysis?.internalSummary?.evidence || [];
-  const stakeholderEvidence =
-    analysis?.stakeholderSummary?.evidence || [];
+    typeof analysis?.stakeholderSummary?.text === "string"
+      ? analysis.stakeholderSummary.text
+      : "";
+  const internalEvidence = Array.isArray(analysis?.internalSummary?.evidence)
+    ? analysis.internalSummary.evidence
+    : [];
+  const stakeholderEvidence = Array.isArray(
+    analysis?.stakeholderSummary?.evidence
+  )
+    ? analysis.stakeholderSummary.evidence
+    : [];
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <h2 className="text-xl font-medium text-gray-900 mb-4">
-        Generated Brief
+        Release Summaries
       </h2>
 
       <div className="space-y-4">
         {/* Internal Technical Brief */}
         <div>
           <h3 className="text-semibold text-gray-900 mb-2">
-            Internal Technical Brief
+            Internal Summary
           </h3>
 
           <textarea
@@ -58,7 +66,7 @@ const BriefPanel = ({ analysis }) => {
         {/* Stakeholder / Client Brief */}
         <div>
           <h3 className="text-semibold text-gray-900 mb-2">
-            Stakeholder / Client Brief
+            Stakeholder Summary
           </h3>
 
           <textarea

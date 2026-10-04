@@ -1,7 +1,9 @@
 import React from "react";
 
 const UnsupportedClaimsPanel = ({ analysis }) => {
-  const unsupportedClaims = analysis?.unsupportedClaims || [];
+  const unsupportedClaims = Array.isArray(analysis?.unsupportedClaims)
+    ? analysis.unsupportedClaims
+    : [];
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
@@ -15,17 +17,31 @@ const UnsupportedClaimsPanel = ({ analysis }) => {
         <p className="text-green-600">✓ No unsupported claims detected.</p>
       ) : (
         <ul className="list-disc pl-5 text-sm text-gray-600 space-y-2">
-          {unsupportedClaims.map((item, idx) => (
-            <li key={idx} className="border-l-4 border-red-500 pl-3">
-              <strong className="text-red-600">{item.claim}</strong>
-              <div className="text-xs text-gray-400 mt-1">
-                <strong>Reason:</strong> {item.reason}
-              </div>
-              <div className="text-xs text-gray-400 mt-1">
-                <strong>QA Evidence:</strong> {item.qaEvidence}
-              </div>
-            </li>
-          ))}
+          {unsupportedClaims.map((entry, idx) => {
+            const item =
+              entry !== null && typeof entry === "object" ? entry : {};
+            const claim =
+              typeof entry === "string" ? entry : item.claim || "";
+            const reason = typeof item.reason === "string" ? item.reason : "";
+            const qaEvidence =
+              typeof item.qaEvidence === "string" ? item.qaEvidence : "";
+
+            return (
+              <li key={idx} className="border-l-4 border-red-500 pl-3">
+                <strong className="text-red-600">{claim}</strong>
+                {reason && (
+                  <div className="text-xs text-gray-400 mt-1">
+                    <strong>Reason:</strong> {reason}
+                  </div>
+                )}
+                {qaEvidence && (
+                  <div className="text-xs text-gray-400 mt-1">
+                    <strong>QA Evidence:</strong> {qaEvidence}
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

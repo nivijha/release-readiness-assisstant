@@ -1,7 +1,9 @@
 import React from "react";
 
 const ImpactPanel = ({ analysis }) => {
-  const impactItems = analysis?.impactAnalysis || [];
+  const impactItems = Array.isArray(analysis?.impactAnalysis)
+    ? analysis.impactAnalysis
+    : [];
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
@@ -15,11 +17,24 @@ const ImpactPanel = ({ analysis }) => {
         </p>
       ) : (
         <div className="space-y-4">
-          {impactItems.map((item, index) => {
+          {impactItems.map((entry, index) => {
+            const item =
+              entry !== null && typeof entry === "object" ? entry : {};
+            const itemName =
+              typeof entry === "string" ? entry : item.item || "";
+            const impact =
+              typeof item.impact === "string" ? item.impact : "";
+            const reason =
+              typeof item.reason === "string" ? item.reason : "";
+            const evidence = Array.isArray(item.evidence)
+              ? item.evidence.filter((value) => typeof value === "string").join(", ")
+              : typeof item.evidence === "string"
+                ? item.evidence
+                : "";
             const impactClass =
-              item.impact === "High"
+              impact === "High"
                 ? "bg-red-100 text-red-800"
-                : item.impact === "Medium"
+                : impact === "Medium"
                 ? "bg-yellow-100 text-yellow-800"
                 : "bg-green-100 text-green-800";
 
@@ -30,17 +45,17 @@ const ImpactPanel = ({ analysis }) => {
                 />
                 <div className="ml-3 flex-1">
                   <p className="font-medium text-gray-900">
-                    {item.item}
+                    {itemName}
                   </p>
                   <p className="text-sm text-gray-500">
-                    Impact: {item.impact}
+                    Impact: {impact}
                   </p>
-                  <p className="text-xs text-gray-400">
-                    {item.reason}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    Evidence: {item.evidence}
-                  </p>
+                  {reason && <p className="text-xs text-gray-400">{reason}</p>}
+                  {evidence && (
+                    <p className="text-xs text-gray-400">
+                      Evidence: {evidence}
+                    </p>
+                  )}
                 </div>
               </div>
             );

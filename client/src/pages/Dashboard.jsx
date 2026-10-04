@@ -1,54 +1,157 @@
 import React, { useState } from "react";
 import ReleaseForm from "../components/ReleaseForm";
 import ValidationPanel from "../components/ValidationPanel";
-import ImpactPanel from "../components/ImpactPanel";
-import UnsupportedClaimsPanel from "../components/UnsupportedClaimsPanel";
-import BriefPanel from "../components/BriefPanel";
 import { api } from "../services/api";
+
+const isRecord = (value) =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
+const getResponseBody = (response) =>
+  isRecord(response?.data) ? response.data : response;
+
+const normalizeAnalysis = (value) => {
+  const result = isRecord(value) ? value : {};
+  const normalizeSummary = (summary) => {
+    const normalized = isRecord(summary) ? summary : {};
+    return {
+      ...normalized,
+      text: typeof normalized.text === "string" ? normalized.text : "",
+      evidence: Array.isArray(normalized.evidence)
+        ? normalized.evidence
+        : [],
+    };
+  };
+
+  return {
+    ...result,
+    impactAnalysis: Array.isArray(result.impactAnalysis)
+      ? result.impactAnalysis
+      : [],
+    missingInformation: Array.isArray(result.missingInformation)
+      ? result.missingInformation
+      : [],
+    unsupportedClaims: Array.isArray(result.unsupportedClaims)
+      ? result.unsupportedClaims
+      : [],
+    risks: Array.isArray(result.risks) ? result.risks : [],
+    internalSummary: normalizeSummary(result.internalSummary),
+    stakeholderSummary: normalizeSummary(result.stakeholderSummary),
+  };
+};
+
+const getErrorMessage = (error, fallback) =>
+  error.response?.data?.message || error.message || fallback;
 
 const Dashboard = () => {
   const [validationResult, setValidationResult] = useState(null);
-  const [analysisResult, setAnalysisResult] = useState(null);
+  const [createdRelease, setCreatedRelease] = useState(null);
+  const [analysis, setAnalysis] = useState(null);
+  const [isValidating, setIsValidating] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [validationError, setValidationError] = useState("");
+  const [createError, setCreateError] = useState("");
+  const [analysisError, setAnalysisError] = useState("");
 
-  const handleAnalyzeRelease = async () => {
-    setIsAnalyzing(true);
+  const handleValidate = async (releaseData) => {
+    setIsValidating(true);
+    setValidationError("");
 
     try {
-      const response = await api.analyzeRelease({
-        version: "v2.4.0",
-        title: "Data Import and Export Improvements",
-        releaseDate: "2026-10-03",
-        completedFeatures: "",
-        bugFixes: "",
-        changedBehaviour: "",
-        qaSummary: "",
-        knownLimitations: "",
-        migrationNotes: "",
-        affectedUserGroups: "",
-      });
+      const body = getResponseBody(await api.validateRelease(releaseData));
+      const validation =
+        body?.validation || body?.data?.validation || null;
 
-      setAnalysisResult(response.analysis);
+      if (!validation) {
+        throw new Error(body?.message || "Validation response was incomplete.");
+      }
+
+      setValidationResult(validation);
     } catch (error) {
-      console.error("Analysis error:", error);
-      setAnalysisResult({
-        impactAnalysis: [],
-        missingInformation: [],
-        unsupportedClaims: [],
-        risks: [],
-        internalSummary: {
-          text: "AI analysis could not be completed.",
-          evidence: [],
-        },
-        stakeholderSummary: {
-          text: "AI analysis could not be completed.",
-          evidence: [],
-        },
+      setValidationError(
+        getErrorMessage(error, "Unable to validate the release package.")
+      );
+      setValidationResult(null);
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  const handleCreate = async (releaseData) => {
+    if (isCreating || !validationResult?.isValid) return;
+
+    setIsCreating(true);
+    setCreateError("");
+
+    try {
+      const body = getResponseBody(await api.createRelease(releaseData));
+      const release = body?.release || body?.data?.release;
+
+      if (body?.success === false || !isRecord(release)) {
+        throw new Error(body?.message || "Release creation failed.");
+      }
+
+      setCreatedRelease({
+        ...release,
+        version: release.version ?? releaseData.version ?? "",
+        releaseId: release.releaseId ?? "",
+        status: release.status ?? "draft",
+        package: isRecord(release.package) ? release.package : releaseData,
+        analysis: isRecord(release.analysis) ? release.analysis : {},
       });
+      setAnalysis(null);
+      setAnalysisError("");
+    } catch (error) {
+      setCreateError(getErrorMessage(error, "Failed to create release."));
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleAnalyzeRelease = async (releaseData) => {
+    if (
+      isAnalyzing ||
+      !validationResult?.isValid ||
+      !createdRelease?.releaseId
+    ) {
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setAnalysisError("");
+
+    try {
+      const body = getResponseBody(
+        await api.analyzeRelease({
+          ...releaseData,
+          version: createdRelease.version,
+          releaseId: createdRelease.releaseId,
+        })
+      );
+      const analysisResponse =
+        body?.analysis || body?.data?.analysis || null;
+
+      if (body?.success === false || !isRecord(analysisResponse)) {
+        throw new Error(body?.message || "Analysis response was incomplete.");
+      }
+
+      setAnalysis(normalizeAnalysis(analysisResponse));
+    } catch (error) {
+      setAnalysisError(
+        getErrorMessage(error, "Unable to analyze the release.")
+      );
     } finally {
       setIsAnalyzing(false);
     }
   };
+
+  const footerMessage = analysis
+    ? "Review the generated analysis before approving the release."
+    : createdRelease
+      ? "Release created as draft. Analyze the release to generate AI-powered insights."
+      : validationResult?.isValid
+        ? "Release package is ready to be created."
+        : "Complete all required release sections and validate the release.";
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -68,79 +171,41 @@ const Dashboard = () => {
       <main className="py-8">
         <div className="max-w-7xl mx-auto px-4">
           <div className="grid gap-6 md:grid-cols-2">
-            {/* Release Package */}
             <div>
               <h2 className="text-lg font-medium text-gray-900 mb-4">
                 Release Package
               </h2>
               <ReleaseForm
-                onValidate={(result) => setValidationResult(result)}
-                onCreate={() => {}}
+                validationResult={validationResult}
+                createdRelease={createdRelease}
+                validationError={validationError}
+                createError={createError}
+                isValidating={isValidating}
+                isCreating={isCreating}
+                isAnalyzing={isAnalyzing}
+                onValidate={handleValidate}
+                onCreate={handleCreate}
+                onAnalyze={handleAnalyzeRelease}
               />
             </div>
 
-            {/* Readiness Analysis */}
             <div>
               <h2 className="text-lg font-medium text-gray-900 mb-4">
                 Readiness Analysis
               </h2>
               <ValidationPanel
                 validationResult={validationResult}
+                validationError={validationError}
+                analysis={analysis}
+                isAnalyzing={isAnalyzing}
+                analysisError={analysisError}
               />
             </div>
           </div>
 
-          {/* AI Analysis Section */}
-          {validationResult && validationResult.isValid ? (
-            <div className="bg-white rounded-lg shadow p-6 mt-6">
-              <h2 className="text-xl font-medium text-gray-900 mb-4">
-                Release Analysis
-              </h2>
-
-              {isAnalyzing ? (
-                <p className="text-sm text-gray-500">
-                  Analyzing release changes, QA evidence, risks, and stakeholder impact...
-                </p>
-              ) : analysisResult ? (
-                <div>
-                  <button
-                    onClick={handleAnalyzeRelease}
-                    disabled={isAnalyzing}
-                    className="
-                      px-4 py-2 bg-indigo-600 text-white font-medium rounded-md
-                      hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500
-                      disabled:opacity-50 disabled:cursor-not-allowed
-                    "
-                  >
-                    {isAnalyzing
-                      ? "Analyzing Release..."
-                      : "Analyze Release"}
-                  </button>
-
-                  <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-                    {/* Impact Panel */}
-                    <ImpactPanel analysis={analysisResult} />
-
-                    {/* Unsupported Claims Panel */}
-                    <UnsupportedClaimsPanel analysis={analysisResult} />
-                  </div>
-
-                  {/* Brief Panel */}
-                  <BriefPanel analysis={analysisResult} />
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500">
-                  Complete all required release sections and click "Analyze Release"
-                  to generate AI-powered insights.
-                </p>
-              )}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500">
-              Complete all required release sections and click "Analyze Release"
-              to generate AI-powered insights.
-            </p>
-          )}
+          <p className="mt-6 text-sm text-gray-500" aria-live="polite">
+            {footerMessage}
+          </p>
         </div>
       </main>
     </div>

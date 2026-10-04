@@ -1,5 +1,7 @@
 // AI release analysis service using Gemini/OpenRouter
 
+import https from "node:https";
+
 // Use Gemini if GEMINI_API_KEY is configured, otherwise return clear error
 function getGeminiApiKey() {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -53,9 +55,13 @@ export async function analyzeRelease(releaseData) {
     const prompt = buildPrompt(releaseData);
 
     // Call Gemini API using https
-    const aiResponse = await callGeminiApi(prompt);
+    const aiResponse = await callGeminiApi(prompt, GEMINI_API_KEY);
+    const responseText = aiResponse?.candidates?.[0]?.content?.parts
+      ?.map((part) => part.text || "")
+      .join("")
+      .trim();
 
-    if (!aiResponse || !aiResponse.text) {
+    if (!responseText) {
       return {
         success: false,
         message: "AI returned an empty response",
@@ -65,10 +71,10 @@ export async function analyzeRelease(releaseData) {
     // Try to parse JSON from the response
     let parsedJson;
     try {
-      parsedJson = JSON.parse(aiResponse.text);
+      parsedJson = JSON.parse(responseText);
     } catch (parseError) {
       // Attempt safe extraction of JSON from the response
-      parsedJson = safeExtractJson(aiResponse.text);
+      parsedJson = safeExtractJson(responseText);
     }
 
     if (!parsedJson || typeof parsedJson !== "object") {
@@ -86,11 +92,10 @@ export async function analyzeRelease(releaseData) {
       analysis: validated,
     };
   } catch (error) {
-    console.error("AI analysis error:", error.message);
-    return {
-      success: false,
-      message: "AI analysis could not be completed.",
-    };
+    if (!error.upstreamStatus) {
+      console.error("AI analysis error:", error.message);
+    }
+    throw error;
   }
 }
 
@@ -126,6 +131,14 @@ ${data.migrationNotes}
 Affected User Groups:
 ${data.affectedUserGroups}
 
+Safety and evidence rules:
+- Use only facts stated in the release package. Never invent facts or outcomes.
+- Never invent or imply QA evidence; use only the QA Summary as QA evidence.
+- Identify claims that are unsupported by the supplied QA evidence.
+- Report missing or insufficient evidence as insufficient evidence.
+- Preserve all known limitations in the analysis and summaries.
+- Do not approve or reject the release, and do not claim it is production-ready.
+
 Please analyze this release and provide:
 1. Impact analysis of each change (classify as Low/Medium/High with reasoning)
 2. Any missing information that would be useful for release readiness
@@ -134,7 +147,33 @@ Please analyze this release and provide:
 5. An internal technical summary
 6. A non-technical stakeholder summary
 
-Follow the output JSON schema exactly. Be thorough but concise.
+Return exactly this JSON structure. Use string arrays for evidence:
+{
+  "impactAnalysis": [
+    {
+      "item": "string",
+      "source": "string",
+      "impact": "Low | Medium | High",
+      "affectedUsers": "string",
+      "reason": "string",
+      "evidence": ["string"]
+    }
+  ],
+  "missingInformation": [{ "item": "string", "reason": "string" }],
+  "unsupportedClaims": [
+    { "claim": "string", "reason": "string", "qaEvidence": "string" }
+  ],
+  "risks": [
+    {
+      "risk": "string",
+      "severity": "Low | Medium | High",
+      "source": "string",
+      "reason": "string"
+    }
+  ],
+  "internalSummary": { "text": "string", "evidence": ["string"] },
+  "stakeholderSummary": { "text": "string", "evidence": ["string"] }
+}
 
 Output JSON ONLY. Do not include any text before or after the JSON object.`;
 }
@@ -142,10 +181,8 @@ Output JSON ONLY. Do not include any text before or after the JSON object.`;
 /**
  * Calls the Gemini Flash API.
  */
-function callGeminiApi(prompt) {
+function callGeminiApi(prompt, apiKey) {
   return new Promise((resolve, reject) => {
-    const https = require("https");
-
     const requestData = {
       contents: [
         {
@@ -157,7 +194,7 @@ function callGeminiApi(prompt) {
 
     const options = {
       hostname: "generativelanguage.googleapis.com",
-      path: `/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      path: `/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -172,20 +209,38 @@ function callGeminiApi(prompt) {
       });
 
       res.on("end", () => {
-        if (res.statusCode !== 200) {
-          // API key invalid or quota exceeded
-          console.error(
-            `Gemini API error: status ${res.statusCode}, body: ${data}`
-          );
-          reject(new Error(`Gemini API returned status ${res.statusCode}`));
+        let result;
+        try {
+          result = JSON.parse(data);
+        } catch (e) {
+          result = null;
+        }
+
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          const responseDetail =
+            typeof data === "string" ? data.trim().slice(0, 500) : "";
+          const upstreamMessage =
+            result?.error?.message ||
+            result?.message ||
+            responseDetail ||
+            "No error message returned";
+          const message = `Gemini API error: ${res.statusCode} ${upstreamMessage}`;
+          console.error(message);
+
+          const error = new Error(message);
+          error.upstreamStatus = res.statusCode;
+          error.statusCode =
+            res.statusCode === 429 || res.statusCode === 503 ? 503 : 502;
+          reject(error);
           return;
         }
-        try {
-          const result = JSON.parse(data);
-          resolve(result);
-        } catch (e) {
+
+        if (!result) {
           reject(new Error("Failed to parse Gemini API response"));
+          return;
         }
+
+        resolve(result);
       });
     });
 

@@ -8,7 +8,7 @@ const apiInstance = axios.create({
  * Validates a release package by sending it to the backend.
  *
  * @param {Object} releaseData - The release package data
- * @returns {Promise<Object>} Axios response containing validation result
+ * @returns {Promise<Object>} API response body containing validation result
  */
 export const validateRelease = async (releaseData) => {
   const response = await apiInstance.post("/releases/validate", releaseData);
@@ -19,7 +19,7 @@ export const validateRelease = async (releaseData) => {
  * Creates a new release in the database.
  *
  * @param {Object} releaseData - The release package data
- * @returns {Promise<Object>} Axios response containing created release
+ * @returns {Promise<Object>} API response body containing the created release
  */
 export const createRelease = async (releaseData) => {
   const response = await apiInstance.post("/releases", releaseData);
@@ -30,7 +30,7 @@ export const createRelease = async (releaseData) => {
  * Analyzes a release package using AI.
  *
  * @param {Object} releaseData - The release package data
- * @returns {Promise<Object>} Axios response containing AI analysis
+ * @returns {Promise<Object>} API response body containing AI analysis
  */
 export const analyzeRelease = async (releaseData) => {
   const response = await apiInstance.post("/releases/analyze", releaseData);

@@ -1,5 +1,52 @@
 import mongoose from "mongoose";
 
+const impactAnalysisSchema = new mongoose.Schema(
+  {
+    item: String,
+    source: String,
+    impact: String,
+    affectedUsers: String,
+    reason: String,
+    evidence: [String],
+  },
+  { _id: false }
+);
+
+const missingInformationSchema = new mongoose.Schema(
+  {
+    item: String,
+    reason: String,
+  },
+  { _id: false }
+);
+
+const unsupportedClaimSchema = new mongoose.Schema(
+  {
+    claim: String,
+    reason: String,
+    qaEvidence: String,
+  },
+  { _id: false }
+);
+
+const riskSchema = new mongoose.Schema(
+  {
+    risk: String,
+    severity: String,
+    source: String,
+    reason: String,
+  },
+  { _id: false }
+);
+
+const summarySchema = new mongoose.Schema(
+  {
+    text: String,
+    evidence: [String],
+  },
+  { _id: false }
+);
+
 const releaseSchema = new mongoose.Schema(
   {
     releaseId: {
@@ -25,10 +72,12 @@ const releaseSchema = new mongoose.Schema(
       stakeholderSummary: { type: String },
     },
     analysis: {
-      impactAnalysis: { type: String },
-      missingInformation: [{ type: String }],
-      unsupportedClaims: [{ type: String }],
-      risks: [{ type: String }],
+      impactAnalysis: [impactAnalysisSchema],
+      missingInformation: [missingInformationSchema],
+      unsupportedClaims: [unsupportedClaimSchema],
+      risks: [riskSchema],
+      internalSummary: summarySchema,
+      stakeholderSummary: summarySchema,
     },
     status: {
       type: String,

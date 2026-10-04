@@ -59,7 +59,7 @@ export const createRelease = async (req, res) => {
     // Create release with version 1 and status draft
     const release = new Release({
       releaseId: releaseData.releaseId || `release-${Date.now()}`,
-      version: 1,
+      version: releaseData.version || "1",
       package: {
         completedFeatures: releaseData.completedFeatures,
         bugFixes: releaseData.bugFixes,
@@ -78,6 +78,14 @@ export const createRelease = async (req, res) => {
         missingInformation: [],
         unsupportedClaims: [],
         risks: [],
+        internalSummary: {
+          text: "",
+          evidence: [],
+        },
+        stakeholderSummary: {
+          text: "",
+          evidence: [],
+        },
       },
       status: "draft",
     });
@@ -90,10 +98,19 @@ export const createRelease = async (req, res) => {
     });
   } catch (error) {
     console.error("Create release error:", error.message);
-    res.status(500).json({
-      success: false,
-      message: "Release could not be saved because the database is unavailable",
-    });
+
+    if (!mongoose.connection.readyState) {
+      res.status(500).json({
+        success: false,
+        message: "Release could not be saved because the database is unavailable",
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: "Release validation failed",
+        error: error.message,
+      });
+    }
   }
 };
 
@@ -118,9 +135,9 @@ export const handleAnalyzeRelease = async (req, res) => {
       aiResult = await aiAnalyzeRelease(releaseData);
     } catch (aiError) {
       console.error("AI analysis failed:", aiError.message);
-      return res.status(502).json({
+      return res.status(aiError.statusCode || 502).json({
         success: false,
-        message: "AI analysis could not be completed.",
+        message: aiError.message || "AI analysis could not be completed.",
       });
     }
 
