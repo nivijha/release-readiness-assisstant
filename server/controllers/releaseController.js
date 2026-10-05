@@ -123,6 +123,18 @@ export const saveReview = async (req, res) => {
     const { releaseId } = req.params;
     const { internalSummary, stakeholderSummary } = req.body;
 
+    if (
+      typeof internalSummary !== "string" ||
+      !internalSummary.trim() ||
+      typeof stakeholderSummary !== "string" ||
+      !stakeholderSummary.trim()
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Both reviewed summaries are required",
+      });
+    }
+
     const release = await Release.findOne({ releaseId });
     if (!release) {
       return res.status(404).json({
@@ -166,20 +178,42 @@ export const approveRelease = async (req, res) => {
       });
     }
 
-    // Confirm analysis exists
-    if (!release.analysis || !release.analysis.internalSummary?.text) {
+    const hasAnalysis =
+      release.analysis &&
+      Array.isArray(release.analysis.impactAnalysis) &&
+      Array.isArray(release.analysis.missingInformation) &&
+      Array.isArray(release.analysis.unsupportedClaims) &&
+      Array.isArray(release.analysis.risks) &&
+      typeof release.analysis.internalSummary?.text === "string" &&
+      release.analysis.internalSummary.text.trim() &&
+      typeof release.analysis.stakeholderSummary?.text === "string" &&
+      release.analysis.stakeholderSummary.text.trim();
+    const hasSavedReview =
+      release.review?.reviewedAt &&
+      typeof release.review.internalSummary === "string" &&
+      release.review.internalSummary.trim() &&
+      typeof release.review.stakeholderSummary === "string" &&
+      release.review.stakeholderSummary.trim();
+
+    console.info("Approve release readiness:", {
+      releaseId,
+      hasAnalysis: Boolean(hasAnalysis),
+      hasReview: Boolean(hasSavedReview),
+      status: release.status,
+    });
+
+    if (!hasAnalysis) {
       return res.status(400).json({
         success: false,
         message: "Analysis data is missing. Cannot approve without analysis.",
       });
     }
 
-    // Confirm reviewed summaries exist or use current generated summaries
-    if (!release.review.internalSummary) {
-      release.review.internalSummary = release.generatedBrief.internalSummary;
-    }
-    if (!release.review.stakeholderSummary) {
-      release.review.stakeholderSummary = release.generatedBrief.stakeholderSummary;
+    if (!hasSavedReview) {
+      return res.status(400).json({
+        success: false,
+        message: "Saved review summaries are required before approval.",
+      });
     }
 
     // Set status and approval timestamp
@@ -217,10 +251,43 @@ export const rejectRelease = async (req, res) => {
       });
     }
 
+    const hasAnalysis =
+      release.analysis &&
+      Array.isArray(release.analysis.impactAnalysis) &&
+      Array.isArray(release.analysis.missingInformation) &&
+      Array.isArray(release.analysis.unsupportedClaims) &&
+      Array.isArray(release.analysis.risks) &&
+      typeof release.analysis.internalSummary?.text === "string" &&
+      release.analysis.internalSummary.text.trim() &&
+      typeof release.analysis.stakeholderSummary?.text === "string" &&
+      release.analysis.stakeholderSummary.text.trim();
+    const hasSavedReview =
+      release.review?.reviewedAt &&
+      typeof release.review.internalSummary === "string" &&
+      release.review.internalSummary.trim() &&
+      typeof release.review.stakeholderSummary === "string" &&
+      release.review.stakeholderSummary.trim();
+
+    console.info("Reject release readiness:", {
+      releaseId,
+      hasAnalysis: Boolean(hasAnalysis),
+      hasReview: Boolean(hasSavedReview),
+      status: release.status,
+    });
+
+    if (!hasAnalysis || !hasSavedReview) {
+      return res.status(400).json({
+        success: false,
+        message: "Analysis and saved review summaries are required before rejection.",
+      });
+    }
+
     // Set status and rejection information
     release.status = "rejected";
-    release.review.rejectionReason = reason;
-    release.review.reviewedAt = new Date();
+    release.review.rejectionReason =
+      typeof reason === "string" && reason.trim()
+        ? reason.trim()
+        : "No reason provided.";
     await release.save();
 
     res.json({
@@ -239,6 +306,22 @@ export const rejectRelease = async (req, res) => {
 export const handleAnalyzeRelease = async (req, res) => {
   try {
     const releaseData = req.body;
+    const { releaseId } = releaseData;
+
+    if (typeof releaseId !== "string" || !releaseId.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Release ID is required to save analysis",
+      });
+    }
+
+    const release = await Release.findOne({ releaseId });
+    if (!release) {
+      return res.status(404).json({
+        success: false,
+        message: "Release not found",
+      });
+    }
 
     // Step 1: Deterministic validation
     const validation = validateReleasePackage(releaseData);
@@ -293,6 +376,15 @@ export const handleAnalyzeRelease = async (req, res) => {
         message: "AI returned an invalid analysis format.",
       });
     }
+
+    release.analysis = validatedAnalysis;
+    await release.save();
+
+    console.info("Release analysis persisted:", {
+      releaseId,
+      hasAnalysis: Boolean(release.analysis?.internalSummary?.text),
+      status: release.status,
+    });
 
     res.json({
       success: true,

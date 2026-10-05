@@ -6,19 +6,19 @@ const BriefPanel = ({ analysis, onSaveReview }) => {
 
   const internalSummary =
     typeof analysis?.internalSummary?.text === "string"
-      ? analysis.internalSummary.text
+      ? analysis?.internalSummary?.text
       : "";
   const stakeholderSummary =
     typeof analysis?.stakeholderSummary?.text === "string"
-      ? analysis.stakeholderSummary.text
+      ? analysis?.stakeholderSummary?.text
       : "";
   const internalEvidence = Array.isArray(analysis?.internalSummary?.evidence)
-    ? analysis.internalSummary.evidence
+    ? analysis?.internalSummary?.evidence
     : [];
   const stakeholderEvidence = Array.isArray(
     analysis?.stakeholderSummary?.evidence
   )
-    ? analysis.stakeholderSummary.evidence
+    ? analysis?.stakeholderSummary?.evidence
     : [];
 
   const handleSaveReview = async () => {

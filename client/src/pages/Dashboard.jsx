@@ -50,7 +50,7 @@ const InternalSummary = ({
 }) => {
   const internalSummary =
     typeof analysis?.internalSummary?.text === "string"
-      ? analysis.internalSummary.text
+      ? analysis?.internalSummary?.text
       : "";
 
   const handleSave = async () => {
@@ -99,7 +99,7 @@ const StakeholderSummary = ({
 }) => {
   const stakeholderSummary =
     typeof analysis?.stakeholderSummary?.text === "string"
-      ? analysis.stakeholderSummary.text
+      ? analysis?.stakeholderSummary?.text
       : "";
 
   const handleSave = async () => {
@@ -229,6 +229,8 @@ const Dashboard = () => {
 
     setIsAnalyzing(true);
     setAnalysisError("");
+    setAnalysis(null);
+    setReviewSaved(false);
 
     try {
       const body = getResponseBody(
@@ -245,12 +247,11 @@ const Dashboard = () => {
         throw new Error(body?.message || "Analysis response was incomplete.");
       }
 
-      setAnalysis(normalizeAnalysis(analysisResponse));
-      setEditedInternalSummary(
-        analysis.internalSummary.text || ""
-      );
+      const normalizedAnalysis = normalizeAnalysis(analysisResponse);
+      setAnalysis(normalizedAnalysis);
+      setEditedInternalSummary(normalizedAnalysis.internalSummary.text);
       setEditedStakeholderSummary(
-        analysis.stakeholderSummary.text || ""
+        normalizedAnalysis.stakeholderSummary.text
       );
       setReviewSaved(false);
       setReleaseStatus("analyzed");
@@ -264,7 +265,7 @@ const Dashboard = () => {
   };
 
   const handleSaveReview = async (internalSummary, stakeholderSummary) => {
-    if (!createdRelease?.releaseId || isSavingReview) return;
+    if (!analysis || !createdRelease?.releaseId || isSavingReview) return;
 
     setIsSavingReview(true);
     try {
@@ -290,7 +291,9 @@ const Dashboard = () => {
   };
 
   const handleApproveRelease = async () => {
-    if (!createdRelease?.releaseId || isApproving) return;
+    if (!analysis || !reviewSaved || !createdRelease?.releaseId || isApproving) {
+      return;
+    }
 
     setIsApproving(true);
     try {
@@ -311,7 +314,9 @@ const Dashboard = () => {
   };
 
   const handleRejectRelease = async () => {
-    if (!createdRelease?.releaseId || isRejecting) return;
+    if (!analysis || !reviewSaved || !createdRelease?.releaseId || isRejecting) {
+      return;
+    }
 
     setIsRejecting(true);
     try {
@@ -448,16 +453,27 @@ const Dashboard = () => {
                     analysis={analysis}
                     onSaveReview={handleSaveReview}
                     editedValue={editedInternalSummary}
-                    setEditedValue={setEditedInternalSummary}
+                    setEditedValue={(value) => {
+                      setEditedInternalSummary(value);
+                      setReviewSaved(false);
+                    }}
                   />
                   <StakeholderSummary
                     analysis={analysis}
                     onSaveReview={handleSaveReview}
                     editedValue={editedStakeholderSummary}
-                    setEditedValue={setEditedStakeholderSummary}
+                    setEditedValue={(value) => {
+                      setEditedStakeholderSummary(value);
+                      setReviewSaved(false);
+                    }}
                   />
                   <button
-                    onClick={handleSaveReview}
+                    onClick={() =>
+                      handleSaveReview(
+                        editedInternalSummary,
+                        editedStakeholderSummary
+                      )
+                    }
                     disabled={isSavingReview}
                     className="
                       mt-4 px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-md
@@ -470,7 +486,10 @@ const Dashboard = () => {
                 </div>
               )}
 
-              {releaseStatus !== "approved" && releaseStatus !== "rejected" && (
+              {analysis &&
+                reviewSaved &&
+                releaseStatus !== "approved" &&
+                releaseStatus !== "rejected" && (
                 <div className="mt-6">
                   <button
                     onClick={handleApproveRelease}
