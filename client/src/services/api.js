@@ -27,6 +27,44 @@ export const createRelease = async (releaseData) => {
 };
 
 /**
+ * Gets a release by its stable release ID.
+ *
+ * @param {string} releaseId - The release ID
+ * @returns {Promise<Object>} API response with the release
+ */
+export const getRelease = async (releaseId) => {
+  const response = await apiInstance.get(
+    `/releases/${encodeURIComponent(releaseId)}`
+  );
+  return response.data;
+};
+
+/**
+ * Lists releases, newest first.
+ *
+ * @returns {Promise<Object>} API response with releases
+ */
+export const getReleases = async () => {
+  const response = await apiInstance.get("/releases");
+  return response.data;
+};
+
+/**
+ * Updates the package of an existing draft release.
+ *
+ * @param {string} releaseId - The release ID
+ * @param {Object} releaseData - Draft title and package fields
+ * @returns {Promise<Object>} API response with the updated release
+ */
+export const updateDraftRelease = async (releaseId, releaseData) => {
+  const response = await apiInstance.put(
+    `/releases/${encodeURIComponent(releaseId)}`,
+    releaseData
+  );
+  return response.data;
+};
+
+/**
  * Analyzes a release package using AI.
  *
  * @param {Object} releaseData - The release package data
@@ -79,11 +117,13 @@ export const rejectRelease = async (releaseId, reason) => {
  * POST /api/releases/:releaseId/versions
  *
  * @param {string} releaseId - The source release ID
- * @param {Object} versionData - { version: string }
  * @returns {Promise<Object>} API response with new release
  */
-export const createNewVersion = async (releaseId, versionData) => {
-  const response = await apiInstance.post(`/releases/${releaseId}/versions`, versionData);
+export const createNewVersion = async (releaseId) => {
+  const response = await apiInstance.post(
+    `/releases/${encodeURIComponent(releaseId)}/versions`,
+    {}
+  );
   return response.data;
 };
 
@@ -134,6 +174,9 @@ export const compareReleases = compareVersions;
 export const api = {
   validateRelease,
   createRelease,
+  getRelease,
+  getReleases,
+  updateDraftRelease,
   analyzeRelease,
   saveReview,
   approveRelease,

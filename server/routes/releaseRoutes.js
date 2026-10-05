@@ -2,6 +2,8 @@ import { Router } from "express";
 import {
   getHealth,
   getReleases,
+  getRelease,
+  updateDraftRelease,
   validateRelease,
   createRelease,
   handleAnalyzeRelease,
@@ -22,6 +24,7 @@ router.post("/validate", validateRelease);
 router.post("/", createRelease);
 router.post("/analyze", handleAnalyzeRelease);
 router.put("/:releaseId/review", saveReview);
+router.put("/:releaseId", updateDraftRelease);
 router.post("/:releaseId/approve", approveRelease);
 router.post("/:releaseId/reject", rejectRelease);
 router.post("/:releaseId/versions", createNewVersion);
@@ -29,5 +32,6 @@ router.get("/:releaseId/versions", getReleaseVersions);
 router.get("/compare/:releaseId1/:releaseId2", compareReleases);
 router.get("/:releaseId/stale-statements", getStaleStatements);
 router.get("/:releaseId1/:releaseId2", compareReleases);
+router.get("/:releaseId", getRelease);
 
 export default router;

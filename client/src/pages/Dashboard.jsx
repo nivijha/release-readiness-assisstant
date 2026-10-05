@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import ReleaseForm from "../components/ReleaseForm";
 import ValidationPanel from "../components/ValidationPanel";
 import VersionHistory from "../components/VersionHistory";
@@ -44,6 +44,24 @@ const normalizeAnalysis = (value) => {
 
 const getErrorMessage = (error, fallback) =>
   error.response?.data?.message || error.message || fallback;
+
+const toReleaseFormData = (release) => {
+  const packageData = release?.package || {};
+  const asText = (value) =>
+    Array.isArray(value) ? value.join("\n") : typeof value === "string" ? value : "";
+  return {
+    version: release?.version || "",
+    title: release?.title || "",
+    releaseDate: release?.releaseDate || "",
+    completedFeatures: asText(packageData.completedFeatures),
+    bugFixes: asText(packageData.bugFixes),
+    changedBehaviour: asText(packageData.changedBehaviour),
+    qaSummary: asText(packageData.qaSummary),
+    knownLimitations: asText(packageData.knownLimitations),
+    migrationNotes: asText(packageData.migrationNotes),
+    affectedUserGroups: asText(packageData.affectedUserGroups),
+  };
+};
 
 const InternalSummary = ({
   analysis,
@@ -160,12 +178,102 @@ const Dashboard = () => {
   const [analysisError, setAnalysisError] = useState("");
   const [isValidating, setIsValidating] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isSavingPackage, setIsSavingPackage] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isCreatingVersion, setIsCreatingVersion] = useState(false);
-  const [newVersion, setNewVersion] = useState("");
   const [showCreateVersion, setShowCreateVersion] = useState(false);
+  const [activeReleaseError, setActiveReleaseError] = useState("");
   const currentStatus = createdRelease?.status || releaseStatus || "";
   const isApproved = currentStatus.toLowerCase() === "approved";
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    const restoreActiveRelease = async () => {
+      try {
+        const activeReleaseId = window.localStorage.getItem(
+          "release-readiness-active-release-id"
+        );
+        let release = null;
+
+        if (activeReleaseId) {
+          const body = getResponseBody(await api.getRelease(activeReleaseId));
+          release = body?.release;
+        } else {
+          const body = getResponseBody(await api.getReleases());
+          release = body?.releases?.[0] || null;
+        }
+
+        if (!isCurrent || !isRecord(release)) return;
+
+        const restoredAnalysis = normalizeAnalysis(release.analysis);
+        const hasAnalysis =
+          Boolean(restoredAnalysis.internalSummary.text) ||
+          restoredAnalysis.impactAnalysis.length > 0 ||
+          restoredAnalysis.risks.length > 0;
+        const hasSavedReview =
+          Boolean(release.review?.reviewedAt) &&
+          typeof release.review?.internalSummary === "string" &&
+          typeof release.review?.stakeholderSummary === "string";
+
+        setCreatedRelease(release);
+        setAnalysis(hasAnalysis ? restoredAnalysis : null);
+        setEditedInternalSummary(
+          release.review?.internalSummary ||
+            restoredAnalysis.internalSummary.text
+        );
+        setEditedStakeholderSummary(
+          release.review?.stakeholderSummary ||
+            restoredAnalysis.stakeholderSummary.text
+        );
+        setReviewSaved(hasSavedReview);
+        setReleaseStatus(
+          release.status === "approved" || release.status === "rejected"
+            ? release.status
+            : hasAnalysis
+              ? "analyzed"
+              : "draft"
+        );
+
+        const validationBody = getResponseBody(
+          await api.validateRelease(toReleaseFormData(release))
+        );
+        if (isCurrent) {
+          setValidationResult(
+            validationBody?.validation || validationBody?.data?.validation || null
+          );
+        }
+      } catch (error) {
+        if (isCurrent) {
+          setActiveReleaseError(
+            getErrorMessage(error, "Unable to restore the active release.")
+          );
+        }
+      }
+    };
+
+    restoreActiveRelease();
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (createdRelease?.releaseId) {
+      window.localStorage.setItem(
+        "release-readiness-active-release-id",
+        createdRelease.releaseId
+      );
+    }
+  }, [createdRelease?.releaseId]);
+
+  const handlePackageChange = () => {
+    setValidationResult(null);
+    setAnalysis(null);
+    setReviewSaved(false);
+    setReleaseStatus("draft");
+    setAnalysisError("");
+  };
 
   const handleValidate = async (releaseData) => {
     setIsValidating(true);
@@ -213,16 +321,49 @@ const Dashboard = () => {
         package: isRecord(release.package) ? release.package : releaseData,
         analysis: isRecord(release.analysis) ? release.analysis : {},
       });
+      setActiveReleaseError("");
       setAnalysis(null);
       setAnalysisError("");
       setEditedInternalSummary("");
       setEditedStakeholderSummary("");
       setReviewSaved(false);
       setReleaseStatus("draft");
+      setValidationResult(validationResult);
     } catch (error) {
       setCreateError(getErrorMessage(error, "Failed to create release."));
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleSavePackage = async (releaseData) => {
+    if (!createdRelease?.releaseId || isSavingPackage) return false;
+
+    setIsSavingPackage(true);
+    setCreateError("");
+    try {
+      const body = getResponseBody(
+        await api.updateDraftRelease(createdRelease.releaseId, releaseData)
+      );
+      const updatedRelease = body?.release;
+      if (body?.success === false || !isRecord(updatedRelease)) {
+        throw new Error(body?.message || "Failed to save draft package.");
+      }
+
+      setCreatedRelease(updatedRelease);
+      setValidationResult(body.validation || null);
+      setAnalysis(null);
+      setReviewSaved(false);
+      setReleaseStatus("draft");
+      setEditedInternalSummary("");
+      setEditedStakeholderSummary("");
+      setAnalysisError("");
+      return true;
+    } catch (error) {
+      setCreateError(getErrorMessage(error, "Failed to save draft package."));
+      return false;
+    } finally {
+      setIsSavingPackage(false);
     }
   };
 
@@ -241,6 +382,9 @@ const Dashboard = () => {
     setReviewSaved(false);
 
     try {
+      const saved = await handleSavePackage(releaseData);
+      if (!saved) return;
+
       const body = getResponseBody(
         await api.analyzeRelease({
           ...releaseData,
@@ -289,6 +433,12 @@ const Dashboard = () => {
       setReviewSaved(true);
       setEditedInternalSummary(internalSummary);
       setEditedStakeholderSummary(stakeholderSummary);
+      if (isRecord(body.release)) {
+        setCreatedRelease((currentRelease) => ({
+          ...currentRelease,
+          ...body.release,
+        }));
+      }
     } catch (error) {
       setAnalysisError(
         getErrorMessage(error, "Failed to save review.")
@@ -338,6 +488,11 @@ const handleRejectRelease = async () => {
         throw new Error(body.message || "Reject failed");
       }
       setReleaseStatus("rejected");
+      setCreatedRelease((currentRelease) => ({
+        ...currentRelease,
+        ...(isRecord(body.release) ? body.release : {}),
+        status: "rejected",
+      }));
       setRejectionReason("");
     } catch (error) {
       setAnalysisError(
@@ -352,24 +507,37 @@ const handleRejectRelease = async () => {
     if (
       !createdRelease?.releaseId ||
       !isApproved ||
-      isCreatingVersion ||
-      !newVersion.trim()
+      isCreatingVersion
     ) {
       return;
     }
 
     setIsCreatingVersion(true);
     try {
-      const result = await api.createNewVersion(createdRelease.releaseId, { version: newVersion.trim() });
+      const result = getResponseBody(
+        await api.createNewVersion(createdRelease.releaseId)
+      );
+      if (result?.success === false || !isRecord(result?.release)) {
+        throw new Error(result?.message || "Failed to create new version.");
+      }
       // Switch UI to the new version by resetting state
       setCreatedRelease(result.release);
       setAnalysis(null);
+      setValidationError("");
+      setCreateError("");
+      setValidationResult(null);
       setEditedInternalSummary("");
       setEditedStakeholderSummary("");
       setReviewSaved(false);
       setReleaseStatus("draft");
+      setAnalysisError("");
       setShowCreateVersion(false);
-      setNewVersion("");
+      const validationBody = getResponseBody(
+        await api.validateRelease(toReleaseFormData(result.release))
+      );
+      setValidationResult(
+        validationBody?.validation || validationBody?.data?.validation || null
+      );
     } catch (error) {
       setAnalysisError(
         getErrorMessage(error, "Failed to create new version.")
@@ -464,9 +632,12 @@ const handleRejectRelease = async () => {
                 createError={createError}
                 isValidating={isValidating}
                 isCreating={isCreating}
+                isSavingPackage={isSavingPackage}
                 isAnalyzing={isAnalyzing}
                 onValidate={handleValidate}
                 onCreate={handleCreate}
+                onSavePackage={handleSavePackage}
+                onPackageChange={handlePackageChange}
                 onAnalyze={handleAnalyzeRelease}
               />
             </div>
@@ -485,6 +656,12 @@ const handleRejectRelease = async () => {
 
 {statusDisplay()}
 
+      {activeReleaseError && (
+        <p role="alert" className="mt-4 text-sm text-red-700">
+          {activeReleaseError}
+        </p>
+      )}
+
       {createdRelease && (
         <div className="mt-4">
           <button
@@ -497,13 +674,6 @@ const handleRejectRelease = async () => {
 
           {showCreateVersion && (
             <div className="mt-3">
-              <input
-                type="text"
-                value={newVersion}
-                onChange={(e) => setNewVersion(e.target.value)}
-                placeholder="v2.4.1"
-                className="w-full px-3 py-2 border rounded-md mb-2"
-              />
               <button
                 onClick={handleCreateVersion}
                 disabled={isCreatingVersion}
@@ -511,16 +681,6 @@ const handleRejectRelease = async () => {
               >
                 {isCreatingVersion ? "Creating..." : "Create Version"}
               </button>
-              {createdRelease && !isCreatingVersion && !isApproved && (
-                <p className="mt-2 text-sm text-red-600">
-                  Create New Version is only available for approved releases.
-                </p>
-              )}
-              {createdRelease && isCreatingVersion && !isApproved && (
-                <p className="mt-2 text-sm text-red-600">
-                  Cannot create new version: release is not approved.
-                </p>
-              )}
               <button
                 onClick={() => setShowCreateVersion(false)}
                 className="mt-2 px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
@@ -532,8 +692,14 @@ const handleRejectRelease = async () => {
         </div>
       )}
 
-      <VersionHistory releaseId={createdRelease?.releaseId} />
-      <StaleStatementDetection releaseId={createdRelease?.releaseId} />
+      <VersionHistory
+        key={createdRelease?.releaseId || "new-release"}
+        releaseId={createdRelease?.releaseId}
+      />
+      <StaleStatementDetection
+        key={createdRelease?.releaseId || "new-release"}
+        releaseId={createdRelease?.releaseId}
+      />
       {createdRelease && <FinalReviewedBrief release={createdRelease} />}
 
       {analysis && releaseStatus !== "approved" && releaseStatus !== "rejected" && (

@@ -4,6 +4,71 @@ import { validateReleasePackage } from "../services/validationService.js";
 import { analyzeRelease as aiAnalyzeRelease } from "../services/aiService.js";
 import diffService from "../services/diffService.js";
 
+const packageListFields = [
+  "completedFeatures",
+  "bugFixes",
+  "changedBehaviour",
+  "knownLimitations",
+  "migrationNotes",
+  "affectedUserGroups",
+];
+
+const normalizeVersion = (version) =>
+  String(version || "").trim().replace(/^v/i, "");
+
+const getNextMinorVersion = (version, existingVersions) => {
+  const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(String(version || ""));
+  if (!match) return null;
+
+  const prefix = String(version).startsWith("v") ? "v" : "";
+  const major = Number(match[1]);
+  let minor = Number(match[2]) + 1;
+  const existing = new Set(existingVersions.map(normalizeVersion));
+  let nextVersion = `${prefix}${major}.${minor}.0`;
+
+  while (existing.has(normalizeVersion(nextVersion))) {
+    minor += 1;
+    nextVersion = `${prefix}${major}.${minor}.0`;
+  }
+
+  return nextVersion;
+};
+
+const uniqueVersions = (releases, preferredReleaseId) => {
+  const byVersion = new Map();
+
+  for (const release of releases) {
+    const key = normalizeVersion(release.version);
+    const current = byVersion.get(key);
+    const candidateIsPreferred = release.releaseId === preferredReleaseId;
+    const currentIsPreferred = current?.releaseId === preferredReleaseId;
+    const candidateIsApproved = release.status === "approved";
+    const currentIsApproved = current?.status === "approved";
+    const candidateIsNewer =
+      new Date(release.updatedAt || release.createdAt || 0).getTime() >
+      new Date(current?.updatedAt || current?.createdAt || 0).getTime();
+
+    if (
+      !current ||
+      (candidateIsPreferred && !currentIsPreferred) ||
+      (candidateIsPreferred === currentIsPreferred &&
+        candidateIsApproved &&
+        !currentIsApproved) ||
+      (candidateIsPreferred === currentIsPreferred &&
+        candidateIsApproved === currentIsApproved &&
+        candidateIsNewer)
+    ) {
+      byVersion.set(key, release);
+    }
+  }
+
+  return [...byVersion.values()].sort(
+    (left, right) =>
+      new Date(right.createdAt || right.updatedAt || 0).getTime() -
+      new Date(left.createdAt || left.updatedAt || 0).getTime()
+  );
+};
+
 export const getHealth = (req, res) => {
   res.json({
     success: true,
@@ -11,8 +76,124 @@ export const getHealth = (req, res) => {
   });
 };
 
-export const getReleases = (req, res) => {
-  res.json({ message: "Get releases placeholder" });
+export const getReleases = async (req, res) => {
+  try {
+    const releases = await Release.find({})
+      .sort({ createdAt: -1 })
+      .select("releaseId version title status createdAt updatedAt previousReleaseId");
+    return res.json({ success: true, releases });
+  } catch (error) {
+    console.error("Get releases error:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to get releases",
+    });
+  }
+};
+
+/**
+ * Get a release by its stable release ID.
+ * GET /api/releases/:releaseId
+ */
+export const getRelease = async (req, res) => {
+  try {
+    const release = await Release.findOne({ releaseId: req.params.releaseId });
+    if (!release) {
+      return res.status(404).json({
+        success: false,
+        message: "Release not found",
+      });
+    }
+    return res.json({ success: true, release });
+  } catch (error) {
+    console.error("Get release error:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to get release",
+    });
+  }
+};
+
+/**
+ * Update a draft release package.
+ * PUT /api/releases/:releaseId
+ */
+export const updateDraftRelease = async (req, res) => {
+  try {
+    const release = await Release.findOne({ releaseId: req.params.releaseId });
+    if (!release) {
+      return res.status(404).json({
+        success: false,
+        message: "Release not found",
+      });
+    }
+    if (release.status !== "draft") {
+      return res.status(400).json({
+        success: false,
+        message: "Only draft releases can be updated",
+      });
+    }
+
+    const data = req.body || {};
+    release.title = typeof data.title === "string" ? data.title : release.title;
+    release.package = release.package || {};
+    for (const field of packageListFields) {
+      if (typeof data[field] === "string") {
+        release.package[field] = data[field]
+          .split(/\r?\n/)
+          .map((value) => value.trim())
+          .filter(Boolean);
+      } else if (Array.isArray(data[field])) {
+        release.package[field] = data[field];
+      }
+    }
+    if (typeof data.qaSummary === "string") {
+      release.package.qaSummary = data.qaSummary;
+    }
+
+    release.analysis = {
+      impactAnalysis: [],
+      missingInformation: [],
+      unsupportedClaims: [],
+      risks: [],
+      internalSummary: { text: "", evidence: [] },
+      stakeholderSummary: { text: "", evidence: [] },
+    };
+    release.review = {
+      internalSummary: "",
+      stakeholderSummary: "",
+      reviewedAt: null,
+      approvedAt: null,
+      rejectionReason: "",
+    };
+    await release.save();
+
+    const savedPackage =
+      typeof release.package?.toObject === "function"
+        ? release.package.toObject()
+        : release.package;
+    return res.json({
+      success: true,
+      release,
+      validation: validateReleasePackage({
+        ...savedPackage,
+        ...Object.fromEntries(
+          packageListFields.map((field) => [
+            field,
+            Array.isArray(savedPackage?.[field])
+              ? savedPackage[field].join("\n")
+              : "",
+          ])
+        ),
+      }),
+    });
+  } catch (error) {
+    console.error("Update draft release error:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update draft release",
+    });
+  }
 };
 
 export const validateRelease = async (req, res) => {
@@ -57,10 +238,14 @@ export const createRelease = async (req, res) => {
       });
     }
 
-    // Create release with version 1 and status draft
+    const releaseId =
+      releaseData.releaseId || `release-${new mongoose.Types.ObjectId()}`;
+
+    // The first release anchors the series; future versions inherit this ID.
     const release = new Release({
-      releaseId: releaseData.releaseId || `release-${Date.now()}`,
+      releaseId,
       version: releaseData.version || "1",
+      releaseSeriesId: releaseId,
       package: {
         completedFeatures: releaseData.completedFeatures,
         bugFixes: releaseData.bugFixes,
@@ -322,7 +507,6 @@ release.review.rejectionReason =
 export const createNewVersion = async (req, res) => {
   try {
     const { releaseId } = req.params;
-    const { version } = req.body;
 
     const sourceRelease = await Release.findOne({ releaseId });
     if (!sourceRelease) {
@@ -341,40 +525,39 @@ export const createNewVersion = async (req, res) => {
       });
     }
 
-    // NEW: Check whether a Release already exists with the same series + version
-    const existingVersion = await Release.findOne({
-      releaseSeriesId: sourceRelease.releaseSeriesId || sourceRelease.releaseId,
-      version,
+    const releaseSeriesId = sourceRelease.releaseSeriesId || sourceRelease.releaseId;
+    const seriesReleases = await Release.find({
+      $or: [
+        { releaseSeriesId },
+        { releaseId: releaseSeriesId },
+      ],
     });
-
-    if (existingVersion) {
-      return res.status(409).json({
+    const version = getNextMinorVersion(
+      sourceRelease.version,
+      seriesReleases.map((release) => release.version)
+    );
+    if (!version) {
+      return res.status(400).json({
         success: false,
-        message: `Version ${version} already exists in this release series.`,
+        message: "Release version must use the format vX.Y.Z to create a new version.",
       });
     }
 
-    // New release gets a fresh ID
-    const newReleaseId = `release-${Date.now()}`;
-
-    // Inherit series: if source has releaseSeriesId, use it;
-    // otherwise use source's own releaseId (makes it the series founder)
-    const releaseSeriesId = sourceRelease.releaseSeriesId || sourceRelease.releaseId;
-
+    const sourcePackage = sourceRelease.package || {};
     const newRelease = new Release({
-      releaseId: newReleaseId,
+      releaseId: `release-${new mongoose.Types.ObjectId().toString()}`,
       version,
       releaseSeriesId,
       previousReleaseId: sourceRelease.releaseId,
       title: sourceRelease.title || "",
       package: {
-        completedFeatures: [...sourceRelease.package.completedFeatures],
-        bugFixes: [...sourceRelease.package.bugFixes],
-        changedBehaviour: [...sourceRelease.package.changedBehaviour],
-        qaSummary: sourceRelease.package.qaSummary,
-        knownLimitations: [...sourceRelease.package.knownLimitations],
-        migrationNotes: [...sourceRelease.package.migrationNotes],
-        affectedUserGroups: [...sourceRelease.package.affectedUserGroups],
+        completedFeatures: [...(sourcePackage.completedFeatures || [])],
+        bugFixes: [...(sourcePackage.bugFixes || [])],
+        changedBehaviour: [...(sourcePackage.changedBehaviour || [])],
+        qaSummary: sourcePackage.qaSummary || "",
+        knownLimitations: [...(sourcePackage.knownLimitations || [])],
+        migrationNotes: [...(sourcePackage.migrationNotes || [])],
+        affectedUserGroups: [...(sourcePackage.affectedUserGroups || [])],
       },
       generatedBrief: {
         internalSummary: "",
@@ -400,7 +583,7 @@ export const createNewVersion = async (req, res) => {
 
     await newRelease.save();
 
-    res.json({
+    return res.json({
       success: true,
       release: newRelease,
     });
@@ -438,7 +621,7 @@ export const getReleaseVersions = async (req, res) => {
     // 1. Modern releases with releaseSeriesId explicitly set
     // 2. The original/founder release whose releaseSeriesId is missing
     //    but whose releaseId === seriesId
-    const versions = await Release.find({
+    const releases = await Release.find({
       $or: [
         { releaseSeriesId: seriesId },
         { releaseId: seriesId },
@@ -446,8 +629,9 @@ export const getReleaseVersions = async (req, res) => {
     })
       .sort({ createdAt: -1 })
       .select("releaseId version title status createdAt updatedAt previousReleaseId");
+    const versions = uniqueVersions(releases, sourceRelease.releaseId);
 
-    res.json({
+    return res.json({
       success: true,
       versions,
     });
@@ -537,6 +721,14 @@ export const compareReleases = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "One or both releases not found",
+      });
+    }
+    if (
+      normalizeVersion(release1.version) === normalizeVersion(release2.version)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Choose two different release versions to compare",
       });
     }
 

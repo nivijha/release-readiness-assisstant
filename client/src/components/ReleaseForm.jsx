@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 const ReleaseForm = ({
   validationResult,
@@ -7,9 +7,12 @@ const ReleaseForm = ({
   createError,
   isValidating,
   isCreating,
+  isSavingPackage,
   isAnalyzing,
   onValidate,
   onCreate,
+  onSavePackage,
+  onPackageChange,
   onAnalyze,
 }) => {
   const [formState, setFormState] = useState({
@@ -24,6 +27,43 @@ const ReleaseForm = ({
     migrationNotes: "",
     affectedUserGroups: "",
   });
+  const canEdit =
+    !createdRelease || createdRelease.status === "draft";
+  const isDraft = createdRelease?.status === "draft";
+
+  useEffect(() => {
+    if (!createdRelease) {
+      setFormState({
+        version: "",
+        title: "",
+        releaseDate: "",
+        completedFeatures: "",
+        bugFixes: "",
+        changedBehaviour: "",
+        qaSummary: "",
+        knownLimitations: "",
+        migrationNotes: "",
+        affectedUserGroups: "",
+      });
+      return;
+    }
+
+    const packageData = createdRelease.package || {};
+    const asText = (value) =>
+      Array.isArray(value) ? value.join("\n") : typeof value === "string" ? value : "";
+    setFormState({
+      version: createdRelease.version || "",
+      title: createdRelease.title || "",
+      releaseDate: createdRelease.releaseDate || "",
+      completedFeatures: asText(packageData.completedFeatures),
+      bugFixes: asText(packageData.bugFixes),
+      changedBehaviour: asText(packageData.changedBehaviour),
+      qaSummary: asText(packageData.qaSummary),
+      knownLimitations: asText(packageData.knownLimitations),
+      migrationNotes: asText(packageData.migrationNotes),
+      affectedUserGroups: asText(packageData.affectedUserGroups),
+    });
+  }, [createdRelease]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -31,6 +71,7 @@ const ReleaseForm = ({
       ...prev,
       [name]: value,
     }));
+    onPackageChange?.();
   };
 
   const handleValidate = (e) => {
@@ -41,6 +82,10 @@ const ReleaseForm = ({
   const handleCreate = (e) => {
     e.preventDefault();
     onCreate(formState);
+  };
+
+  const handleSavePackage = () => {
+    onSavePackage?.(formState);
   };
 
   return (
@@ -79,7 +124,7 @@ const ReleaseForm = ({
                 name="title"
                 value={formState.title}
                 onChange={handleChange}
-                disabled={Boolean(createdRelease) || isCreating}
+                disabled={!canEdit || isCreating}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="e.g., Data Import Improvements"
               />
@@ -95,7 +140,7 @@ const ReleaseForm = ({
               name="releaseDate"
               value={formState.releaseDate}
               onChange={handleChange}
-              disabled={Boolean(createdRelease) || isCreating}
+              disabled={!canEdit || isCreating}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -111,7 +156,7 @@ const ReleaseForm = ({
             rows={3}
             value={formState.completedFeatures}
             onChange={handleChange}
-            disabled={Boolean(createdRelease) || isCreating}
+            disabled={!canEdit || isCreating}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-text placeholder-gray-400"
             placeholder="Describe the features completed in this release..."
           ></textarea>
@@ -125,7 +170,7 @@ const ReleaseForm = ({
             rows={3}
             value={formState.bugFixes}
             onChange={handleChange}
-            disabled={Boolean(createdRelease) || isCreating}
+            disabled={!canEdit || isCreating}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-text placeholder-gray-400"
             placeholder="Describe bugs fixed in this release..."
           ></textarea>
@@ -141,7 +186,7 @@ const ReleaseForm = ({
             rows={3}
             value={formState.changedBehaviour}
             onChange={handleChange}
-            disabled={Boolean(createdRelease) || isCreating}
+            disabled={!canEdit || isCreating}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-text placeholder-gray-400"
             placeholder="Describe behaviour that has changed..."
           ></textarea>
@@ -155,7 +200,7 @@ const ReleaseForm = ({
             rows={3}
             value={formState.qaSummary}
             onChange={handleChange}
-            disabled={Boolean(createdRelease) || isCreating}
+            disabled={!canEdit || isCreating}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-text placeholder-gray-400"
             placeholder="Describe testing performed, test results, regression testing, failures, etc."
           ></textarea>
@@ -171,7 +216,7 @@ const ReleaseForm = ({
             rows={3}
             value={formState.knownLimitations}
             onChange={handleChange}
-            disabled={Boolean(createdRelease) || isCreating}
+            disabled={!canEdit || isCreating}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-text placeholder-gray-400"
             placeholder="List known limitations or unresolved issues..."
           ></textarea>
@@ -187,7 +232,7 @@ const ReleaseForm = ({
             rows={3}
             value={formState.migrationNotes}
             onChange={handleChange}
-            disabled={Boolean(createdRelease) || isCreating}
+            disabled={!canEdit || isCreating}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-text placeholder-gray-400"
             placeholder="Describe required configuration or migration steps..."
           ></textarea>
@@ -203,7 +248,7 @@ const ReleaseForm = ({
             rows={3}
             value={formState.affectedUserGroups}
             onChange={handleChange}
-            disabled={Boolean(createdRelease) || isCreating}
+            disabled={!canEdit || isCreating}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-text placeholder-gray-400"
             placeholder="Describe which users/customers are affected..."
           ></textarea>
@@ -214,7 +259,7 @@ const ReleaseForm = ({
           <button
             type="button"
             onClick={handleValidate}
-            disabled={isValidating || isCreating || Boolean(createdRelease)}
+            disabled={isValidating || isCreating || !canEdit}
             className="
               px-6 py-2.5 bg-blue-600 text-white font-medium rounded-md
               hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500
@@ -288,12 +333,25 @@ const ReleaseForm = ({
             Status: {createdRelease.status || ""}
           </p>
           <p className="text-xs mt-2 text-green-600">
-            The release is saved. Analyze it to generate AI-powered insights.
+            {isDraft
+              ? "Draft package can be edited and saved before analysis."
+              : "This release is read-only."}
           </p>
+          {isDraft && (
+            <button
+              type="button"
+              onClick={handleSavePackage}
+              disabled={isSavingPackage || isCreating}
+              className="mt-4 mr-3 rounded-md bg-gray-700 px-6 py-2.5 font-medium text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSavingPackage ? "Saving..." : "Save Package"}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onAnalyze(formState)}
             disabled={
+              !isDraft ||
               !validationResult?.isValid ||
               !createdRelease.releaseId ||
               isAnalyzing
