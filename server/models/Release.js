@@ -84,6 +84,13 @@ const releaseSchema = new mongoose.Schema(
       enum: ["draft", "approved", "rejected"],
       default: "draft",
     },
+    review: {
+      internalSummary: String,
+      stakeholderSummary: String,
+      reviewedAt: Date,
+      approvedAt: Date,
+      rejectionReason: String,
+    },
     createdAt: {
       type: Date,
       default: Date.now,

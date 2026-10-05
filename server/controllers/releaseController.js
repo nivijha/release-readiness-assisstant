@@ -114,6 +114,128 @@ export const createRelease = async (req, res) => {
   }
 };
 
+/**
+ * Save user-reviewed summaries for a release.
+ * PUT /api/releases/:releaseId/review
+ */
+export const saveReview = async (req, res) => {
+  try {
+    const { releaseId } = req.params;
+    const { internalSummary, stakeholderSummary } = req.body;
+
+    const release = await Release.findOne({ releaseId });
+    if (!release) {
+      return res.status(404).json({
+        success: false,
+        message: "Release not found",
+      });
+    }
+
+    // Update reviewed summaries, preserving original AI analysis
+    release.review.internalSummary = internalSummary;
+    release.review.stakeholderSummary = stakeholderSummary;
+    release.review.reviewedAt = new Date();
+    await release.save();
+
+    res.json({
+      success: true,
+      release,
+    });
+  } catch (error) {
+    console.error("Save review error:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Failed to save review",
+    });
+  }
+};
+
+/**
+ * Approve a release.
+ * POST /api/releases/:releaseId/approve
+ */
+export const approveRelease = async (req, res) => {
+  try {
+    const { releaseId } = req.params;
+
+    const release = await Release.findOne({ releaseId });
+    if (!release) {
+      return res.status(404).json({
+        success: false,
+        message: "Release not found",
+      });
+    }
+
+    // Confirm analysis exists
+    if (!release.analysis || !release.analysis.internalSummary?.text) {
+      return res.status(400).json({
+        success: false,
+        message: "Analysis data is missing. Cannot approve without analysis.",
+      });
+    }
+
+    // Confirm reviewed summaries exist or use current generated summaries
+    if (!release.review.internalSummary) {
+      release.review.internalSummary = release.generatedBrief.internalSummary;
+    }
+    if (!release.review.stakeholderSummary) {
+      release.review.stakeholderSummary = release.generatedBrief.stakeholderSummary;
+    }
+
+    // Set status and approval timestamp
+    release.status = "approved";
+    release.review.approvedAt = new Date();
+    await release.save();
+
+    res.json({
+      success: true,
+      release,
+    });
+  } catch (error) {
+    console.error("Approve release error:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Failed to approve release",
+    });
+  }
+};
+
+/**
+ * Reject a release.
+ * POST /api/releases/:releaseId/reject
+ */
+export const rejectRelease = async (req, res) => {
+  try {
+    const { releaseId } = req.params;
+    const { reason } = req.body;
+
+    const release = await Release.findOne({ releaseId });
+    if (!release) {
+      return res.status(404).json({
+        success: false,
+        message: "Release not found",
+      });
+    }
+
+    // Set status and rejection information
+    release.status = "rejected";
+    release.review.rejectionReason = reason;
+    release.review.reviewedAt = new Date();
+    await release.save();
+
+    res.json({
+      success: true,
+      release,
+    });
+  } catch (error) {
+    console.error("Reject release error:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Failed to reject release",
+    });
+  }
+};
+
 export const handleAnalyzeRelease = async (req, res) => {
   try {
     const releaseData = req.body;

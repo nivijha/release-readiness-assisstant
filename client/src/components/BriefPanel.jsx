@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-const BriefPanel = ({ analysis }) => {
+const BriefPanel = ({ analysis, onSaveReview }) => {
   const [internalEdited, setInternalEdited] = useState(false);
   const [stakeholderEdited, setStakeholderEdited] = useState(false);
 
@@ -20,6 +20,15 @@ const BriefPanel = ({ analysis }) => {
   )
     ? analysis.stakeholderSummary.evidence
     : [];
+
+  const handleSaveReview = async () => {
+    if (onSaveReview) {
+      await onSaveReview(
+        internalSummary,
+        stakeholderSummary
+      );
+    }
+  };
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
@@ -42,13 +51,9 @@ const BriefPanel = ({ analysis }) => {
               {internalEdited ? '' : 'bg-gray-50'}
             "
             value={internalSummary}
-            onChange={(e) => {
-              // In a full implementation, this would update state
-              // For now just mark as edited
-              setInternalEdited(true);
-            }}
-            disabled={!internalEdited}
+            onChange={(e) => setInternalEdited(true)}
             placeholder="Technical summary for developers, QA, and release managers..."
+            disabled={!internalEdited}
           />
 
           {internalEvidence.length > 0 && (
@@ -60,6 +65,17 @@ const BriefPanel = ({ analysis }) => {
                 </div>
               ))}
             </div>
+          )}
+
+          {!internalEdited && (
+            <button
+              onClick={handleSaveReview}
+              className="
+                mt-2 px-3 py-1 text-sm font-medium text-indigo-600 rounded-md hover:bg-indigo-100
+              "
+            >
+              Save Changes
+            </button>
           )}
         </div>
 
@@ -77,11 +93,9 @@ const BriefPanel = ({ analysis }) => {
               {stakeholderEdited ? '' : 'bg-gray-50'}
             "
             value={stakeholderSummary}
-            onChange={(e) => {
-              setStakeholderEdited(true);
-            }}
-            disabled={!stakeholderEdited}
+            onChange={(e) => setStakeholderEdited(true)}
             placeholder="Client-friendly summary for stakeholders and non-technical users..."
+            disabled={!stakeholderEdited}
           />
 
           {stakeholderEvidence.length > 0 && (
@@ -93,6 +107,17 @@ const BriefPanel = ({ analysis }) => {
                 </div>
               ))}
             </div>
+          )}
+
+          {!stakeholderEdited && (
+            <button
+              onClick={handleSaveReview}
+              className="
+                mt-2 px-3 py-1 text-sm font-medium text-indigo-600 rounded-md hover:bg-indigo-100
+              "
+            >
+              Save Changes
+            </button>
           )}
         </div>
       </div>

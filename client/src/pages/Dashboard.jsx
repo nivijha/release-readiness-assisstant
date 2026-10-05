@@ -42,16 +42,122 @@ const normalizeAnalysis = (value) => {
 const getErrorMessage = (error, fallback) =>
   error.response?.data?.message || error.message || fallback;
 
+const InternalSummary = ({
+  analysis,
+  onSaveReview,
+  editedValue,
+  setEditedValue,
+}) => {
+  const internalSummary =
+    typeof analysis?.internalSummary?.text === "string"
+      ? analysis.internalSummary.text
+      : "";
+
+  const handleSave = async () => {
+    if (onSaveReview && editedValue) {
+      await onSaveReview(editedValue, /* stakeholderSummary */ "");
+    }
+  };
+
+  return (
+    <div>
+      <h3 className="text-semibold text-gray-900 mb-2">
+        Internal Summary
+      </h3>
+      <textarea
+        rows={4}
+        className="
+          w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none
+          focus:ring-2 focus:ring-indigo-500 resize-none text-sm
+          bg-gray-50
+        "
+        value={editedValue || internalSummary}
+        onChange={(e) => setEditedValue(e.target.value)}
+        placeholder="Technical summary for developers, QA, and release managers..."
+        disabled={false}
+      />
+
+      {internalSummary.length > 0 && (
+        <div className="mt-3 text-xs text-gray-400">
+          <strong>Evidence:</strong>
+          {analysis?.internalSummary?.evidence?.map((ev, i) => (
+            <div key={i} className="mb-1">
+              • {ev}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const StakeholderSummary = ({
+  analysis,
+  onSaveReview,
+  editedValue,
+  setEditedValue,
+}) => {
+  const stakeholderSummary =
+    typeof analysis?.stakeholderSummary?.text === "string"
+      ? analysis.stakeholderSummary.text
+      : "";
+
+  const handleSave = async () => {
+    if (onSaveReview && editedValue) {
+      await onSaveReview(/* internalSummary */ "", editedValue);
+    }
+  };
+
+  return (
+    <div>
+      <h3 className="text-semibold text-gray-900 mb-2">
+        Stakeholder Summary
+      </h3>
+      <textarea
+        rows={4}
+        className="
+          w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none
+          focus:ring-2 focus:ring-indigo-500 resize-none text-sm
+          bg-gray-50
+        "
+        value={editedValue || stakeholderSummary}
+        onChange={(e) => setEditedValue(e.target.value)}
+        placeholder="Client-friendly summary for stakeholders and non-technical users..."
+        disabled={false}
+      />
+
+      {stakeholderSummary.length > 0 && (
+        <div className="mt-3 text-xs text-gray-400">
+          <strong>Evidence:</strong>
+          {analysis?.stakeholderSummary?.evidence?.map((ev, i) => (
+            <div key={i} className="mb-1">
+              • {ev}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Dashboard = () => {
   const [validationResult, setValidationResult] = useState(null);
   const [createdRelease, setCreatedRelease] = useState(null);
   const [analysis, setAnalysis] = useState(null);
-  const [isValidating, setIsValidating] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [editedInternalSummary, setEditedInternalSummary] = useState("");
+  const [editedStakeholderSummary, setEditedStakeholderSummary] = useState("");
+  const [reviewSaved, setReviewSaved] = useState(false);
+  const [isSavingReview, setIsSavingReview] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+  const [isRejecting, setIsRejecting] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [releaseStatus, setReleaseStatus] = useState("draft");
   const [validationError, setValidationError] = useState("");
   const [createError, setCreateError] = useState("");
   const [analysisError, setAnalysisError] = useState("");
+  const [isValidating, setIsValidating] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const handleValidate = async (releaseData) => {
     setIsValidating(true);
@@ -101,6 +207,10 @@ const Dashboard = () => {
       });
       setAnalysis(null);
       setAnalysisError("");
+      setEditedInternalSummary("");
+      setEditedStakeholderSummary("");
+      setReviewSaved(false);
+      setReleaseStatus("draft");
     } catch (error) {
       setCreateError(getErrorMessage(error, "Failed to create release."));
     } finally {
@@ -136,12 +246,89 @@ const Dashboard = () => {
       }
 
       setAnalysis(normalizeAnalysis(analysisResponse));
+      setEditedInternalSummary(
+        analysis.internalSummary.text || ""
+      );
+      setEditedStakeholderSummary(
+        analysis.stakeholderSummary.text || ""
+      );
+      setReviewSaved(false);
+      setReleaseStatus("analyzed");
     } catch (error) {
       setAnalysisError(
         getErrorMessage(error, "Unable to analyze the release.")
       );
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const handleSaveReview = async (internalSummary, stakeholderSummary) => {
+    if (!createdRelease?.releaseId || isSavingReview) return;
+
+    setIsSavingReview(true);
+    try {
+      const body = getResponseBody(
+        await api.saveReview(createdRelease.releaseId, {
+          internalSummary,
+          stakeholderSummary,
+        })
+      );
+      if (body.success === false) {
+        throw new Error(body.message || "Save failed");
+      }
+      setReviewSaved(true);
+      setEditedInternalSummary(internalSummary);
+      setEditedStakeholderSummary(stakeholderSummary);
+    } catch (error) {
+      setAnalysisError(
+        getErrorMessage(error, "Failed to save review.")
+      );
+    } finally {
+      setIsSavingReview(false);
+    }
+  };
+
+  const handleApproveRelease = async () => {
+    if (!createdRelease?.releaseId || isApproving) return;
+
+    setIsApproving(true);
+    try {
+      const body = getResponseBody(
+        await api.approveRelease(createdRelease.releaseId)
+      );
+      if (body.success === false) {
+        throw new Error(body.message || "Approve failed");
+      }
+      setReleaseStatus("approved");
+    } catch (error) {
+      setAnalysisError(
+        getErrorMessage(error, "Failed to approve release.")
+      );
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
+  const handleRejectRelease = async () => {
+    if (!createdRelease?.releaseId || isRejecting) return;
+
+    setIsRejecting(true);
+    try {
+      const body = getResponseBody(
+        await api.rejectRelease(createdRelease.releaseId, rejectionReason)
+      );
+      if (body.success === false) {
+        throw new Error(body.message || "Reject failed");
+      }
+      setReleaseStatus("rejected");
+      setRejectionReason("");
+    } catch (error) {
+      setAnalysisError(
+        getErrorMessage(error, "Failed to reject release.")
+      );
+    } finally {
+      setIsRejecting(false);
     }
   };
 
@@ -152,6 +339,54 @@ const Dashboard = () => {
       : validationResult?.isValid
         ? "Release package is ready to be created."
         : "Complete all required release sections and validate the release.";
+
+  const statusDisplay = () => {
+    if (releaseStatus === "approved") {
+      return (
+        <div className="mt-6 p-4 rounded-md bg-green-100 border-green-400">
+          <p className="font-medium text-green-800">
+            ✅ APPROVED
+          </p>
+          <p className="text-sm text-green-600">
+            Release has been approved and is ready for publication.
+          </p>
+        </div>
+      );
+    }
+
+    if (releaseStatus === "rejected") {
+      return (
+        <div className="mt-6 p-4 rounded-md bg-red-100 border-red-400">
+          <p className="font-medium text-red-800">
+            ❌ REJECTED
+          </p>
+          {rejectionReason && (
+            <p className="text-sm text-red-600">
+              Reason: {rejectionReason}
+            </p>
+          )}
+          <p className="text-sm text-red-600">
+            Release has been rejected.
+          </p>
+        </div>
+      );
+    }
+
+    if (releaseStatus === "analyzed") {
+      return (
+        <div className="mt-6 p-4 rounded-md bg-indigo-100 border-indigo-400">
+          <p className="font-medium text-indigo-800">
+            Analysis Complete — Awaiting Review
+          </p>
+          <p className="text-sm text-indigo-600">
+            AI analysis finished. Review and edit the summaries below.
+          </p>
+        </div>
+      );
+    }
+
+    return null;
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -200,6 +435,92 @@ const Dashboard = () => {
                 isAnalyzing={isAnalyzing}
                 analysisError={analysisError}
               />
+
+              {statusDisplay()}
+
+              {analysis && releaseStatus !== "approved" && releaseStatus !== "rejected" && (
+                <div className="mt-6 p-4 rounded-md bg-yellow-50 border-yellow-200">
+                  <h3 className="font-medium text-yellow-800 mb-2">Release Readiness</h3>
+                  <p className="text-sm text-yellow-700">
+                    Analysis completed successfully.
+                  </p>
+                  <InternalSummary
+                    analysis={analysis}
+                    onSaveReview={handleSaveReview}
+                    editedValue={editedInternalSummary}
+                    setEditedValue={setEditedInternalSummary}
+                  />
+                  <StakeholderSummary
+                    analysis={analysis}
+                    onSaveReview={handleSaveReview}
+                    editedValue={editedStakeholderSummary}
+                    setEditedValue={setEditedStakeholderSummary}
+                  />
+                  <button
+                    onClick={handleSaveReview}
+                    disabled={isSavingReview}
+                    className="
+                      mt-4 px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-md
+                      hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500
+                      disabled:opacity-50 disabled:cursor-not-allowed
+                    "
+                  >
+                    {isSavingReview ? "Saving..." : "Save Review"}
+                  </button>
+                </div>
+              )}
+
+              {releaseStatus !== "approved" && releaseStatus !== "rejected" && (
+                <div className="mt-6">
+                  <button
+                    onClick={handleApproveRelease}
+                    disabled={isApproving}
+                    className="
+                      mt-2 px-6 py-2.5 bg-green-600 text-white font-medium rounded-md
+                      hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500
+                      disabled:opacity-50 disabled:cursor-not-allowed
+                    "
+                  >
+                    {isApproving ? "Approving..." : "Approve Release"}
+                  </button>
+                  <button
+                    onClick={handleRejectRelease}
+                    disabled={isRejecting}
+                    className="
+                      mt-2 px-6 py-2.5 bg-red-600 text-white font-medium rounded-md
+                      hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500
+                      disabled:opacity-50 disabled:cursor-not-allowed
+                    "
+                  >
+                    {isRejecting ? "Rejecting..." : "Reject Release"}
+                  </button>
+                </div>
+              )}
+
+              {releaseStatus === "approved" && (
+                <div className="mt-6 p-4 rounded-md bg-green-100 border-green-400">
+                  <p className="font-medium text-green-800">
+                    ✅ Release approved
+                  </p>
+                  <p className="text-sm text-green-600">
+                    The release has been approved and is ready for publication.
+                  </p>
+                </div>
+              )}
+
+              {releaseStatus === "rejected" && (
+                <div className="mt-6 p-4 rounded-md bg-red-100 border-red-400">
+                  <p className="font-medium text-red-800">
+                    ❌ Release rejected
+                  </p>
+                  {rejectionReason && (
+                    <p className="text-sm text-red-600">Reason: {rejectionReason}</p>
+                  )}
+                  <p className="text-sm text-red-600">
+                    The release has been rejected.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
