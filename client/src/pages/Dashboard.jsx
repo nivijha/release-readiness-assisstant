@@ -183,6 +183,7 @@ const Dashboard = () => {
   const [isCreatingVersion, setIsCreatingVersion] = useState(false);
   const [showCreateVersion, setShowCreateVersion] = useState(false);
   const [activeReleaseError, setActiveReleaseError] = useState("");
+  const [activeReleaseLoaded, setActiveReleaseLoaded] = useState(false);
   const currentStatus = createdRelease?.status || releaseStatus || "";
   const isApproved = currentStatus.toLowerCase() === "approved";
 
@@ -249,6 +250,8 @@ const Dashboard = () => {
             getErrorMessage(error, "Unable to restore the active release.")
           );
         }
+      } finally {
+        if (isCurrent) setActiveReleaseLoaded(true);
       }
     };
 
@@ -692,10 +695,14 @@ const handleRejectRelease = async () => {
         </div>
       )}
 
-      <VersionHistory
-        key={createdRelease?.releaseId || "new-release"}
-        releaseId={createdRelease?.releaseId}
-      />
+      {activeReleaseLoaded && createdRelease?.releaseId && (
+        <VersionHistory
+          key={createdRelease.releaseId}
+          releaseId={createdRelease.releaseId}
+          activeReleaseId={createdRelease.releaseId}
+          refreshKey={createdRelease.status}
+        />
+      )}
       <StaleStatementDetection
         key={createdRelease?.releaseId || "new-release"}
         releaseId={createdRelease?.releaseId}

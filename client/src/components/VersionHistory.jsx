@@ -1,7 +1,41 @@
 import React, { useEffect, useState } from "react";
 import { api } from "../services/api";
 
-const VersionHistory = ({ releaseId }) => {
+const normalizeVersion = (version) =>
+  String(version || "").trim().replace(/^v/i, "");
+
+const getUniqueVersions = (releases, activeReleaseId) => {
+  const versionsByLabel = new Map();
+
+  releases.forEach((release) => {
+    const key = normalizeVersion(release.version);
+    const existing = versionsByLabel.get(key);
+    const releaseIsActive = release.releaseId === activeReleaseId;
+    const existingIsActive = existing?.releaseId === activeReleaseId;
+    const releaseIsApproved = release.status === "approved";
+    const existingIsApproved = existing?.status === "approved";
+    const releaseIsNewer =
+      new Date(release.updatedAt || release.createdAt || 0).getTime() >
+      new Date(existing?.updatedAt || existing?.createdAt || 0).getTime();
+
+    if (
+      !existing ||
+      (releaseIsActive && !existingIsActive) ||
+      (releaseIsActive === existingIsActive &&
+        releaseIsApproved &&
+        !existingIsApproved) ||
+      (releaseIsActive === existingIsActive &&
+        releaseIsApproved === existingIsApproved &&
+        releaseIsNewer)
+    ) {
+      versionsByLabel.set(key, release);
+    }
+  });
+
+  return [...versionsByLabel.values()];
+};
+
+const VersionHistory = ({ releaseId, activeReleaseId, refreshKey }) => {
   const [versions, setVersions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [oldReleaseId, setOldReleaseId] = useState("");
@@ -12,6 +46,8 @@ const VersionHistory = ({ releaseId }) => {
   const [historyError, setHistoryError] = useState("");
 
   useEffect(() => {
+    let isCurrentRequest = true;
+
     const loadVersions = async () => {
       if (!releaseId) {
         setVersions([]);
@@ -19,29 +55,49 @@ const VersionHistory = ({ releaseId }) => {
         setOldReleaseId("");
         setNewReleaseId("");
         setComparison(null);
+        setHistoryError("");
         return;
       }
 
       setLoading(true);
+      setHistoryError("");
       try {
         const result = await api.getVersions(releaseId);
-        const loadedVersions = result.versions || [];
+        if (!isCurrentRequest) return;
+        const loadedVersions = getUniqueVersions(
+          Array.isArray(result?.versions) ? result.versions : [],
+          activeReleaseId
+        );
         setVersions(loadedVersions);
-        setOldReleaseId(loadedVersions[1]?.releaseId || "");
-        setNewReleaseId(loadedVersions[0]?.releaseId || "");
+        const activeIndex = loadedVersions.findIndex(
+          (version) => version.releaseId === activeReleaseId
+        );
+        const currentIndex = activeIndex >= 0 ? activeIndex : 0;
+        setNewReleaseId(loadedVersions[currentIndex]?.releaseId || "");
+        setOldReleaseId(
+          loadedVersions[currentIndex + 1]?.releaseId ||
+            loadedVersions.find((version, index) => index !== currentIndex)
+              ?.releaseId ||
+            ""
+        );
         setComparison(null);
         setComparisonError("");
-        setHistoryError("");
       } catch (error) {
         console.error("Failed to load versions:", error);
-        setVersions([]);
-        setHistoryError("Unable to load version history. Please try again.");
+        if (isCurrentRequest) {
+          setVersions([]);
+          setHistoryError("Unable to load version history. Please try again.");
+        }
       } finally {
-        setLoading(false);
+        if (isCurrentRequest) setLoading(false);
       }
     };
+
     loadVersions();
-  }, [releaseId]);
+    return () => {
+      isCurrentRequest = false;
+    };
+  }, [releaseId, activeReleaseId, refreshKey]);
 
   const handleCompare = async () => {
     if (!oldReleaseId || !newReleaseId || comparisonLoading) return;
