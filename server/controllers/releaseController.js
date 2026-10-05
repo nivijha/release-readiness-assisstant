@@ -461,6 +461,66 @@ export const getReleaseVersions = async (req, res) => {
 };
 
 /**
+ * Detect package sections that changed since the previous release.
+ * GET /api/releases/:releaseId/stale-statements
+ */
+export const getStaleStatements = async (req, res) => {
+  try {
+    const { releaseId } = req.params;
+    const currentRelease = await Release.findOne({ releaseId });
+
+    if (!currentRelease) {
+      return res.status(404).json({
+        success: false,
+        message: "Release not found",
+      });
+    }
+
+    if (!currentRelease.previousReleaseId) {
+      return res.json({
+        success: true,
+        staleStatements: [],
+      });
+    }
+
+    const previousRelease = await Release.findOne({
+      releaseId: currentRelease.previousReleaseId,
+    });
+    if (!previousRelease) {
+      return res.status(404).json({
+        success: false,
+        message: "Previous release not found",
+      });
+    }
+
+    const reason =
+      "The corresponding release section changed and the previous statement may no longer be valid.";
+    const staleStatements = diffService
+      .compareReleases(previousRelease, currentRelease)
+      .filter((section) => section.changed)
+      .map((section) => ({
+        section: section.field,
+        previousVersion: previousRelease.version,
+        previousStatement: section.oldValue,
+        currentVersion: currentRelease.version,
+        currentStatement: section.newValue,
+        reason,
+      }));
+
+    return res.json({
+      success: true,
+      staleStatements,
+    });
+  } catch (error) {
+    console.error("Get stale statements error:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to detect stale statements",
+    });
+  }
+};
+
+/**
  * Compare two releases.
  * GET /api/releases/compare/:releaseId1/:releaseId2
  */
@@ -468,8 +528,10 @@ export const compareReleases = async (req, res) => {
   try {
     const { releaseId1, releaseId2 } = req.params;
 
-    const release1 = await Release.findOne({ releaseId: releaseId1 });
-    const release2 = await Release.findOne({ releaseId: releaseId2 });
+    const [release1, release2] = await Promise.all([
+      Release.findOne({ releaseId: releaseId1 }),
+      Release.findOne({ releaseId: releaseId2 }),
+    ]);
 
     if (!release1 || !release2) {
       return res.status(404).json({
@@ -478,11 +540,22 @@ export const compareReleases = async (req, res) => {
       });
     }
 
-    const comparison = diffService.compareReleases(release1, release2);
+    const releaseSeriesId1 = release1.releaseSeriesId || release1.releaseId;
+    const releaseSeriesId2 = release2.releaseSeriesId || release2.releaseId;
+    if (releaseSeriesId1 !== releaseSeriesId2) {
+      return res.status(400).json({
+        success: false,
+        message: "Releases must belong to the same version series",
+      });
+    }
 
     res.json({
       success: true,
-      comparison,
+      comparison: {
+        oldVersion: release1.version,
+        newVersion: release2.version,
+        sections: diffService.compareReleases(release1, release2),
+      },
     });
   } catch (error) {
     console.error("Compare releases error:", error.message);

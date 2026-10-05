@@ -10,6 +10,7 @@ import {
   rejectRelease,
   createNewVersion,
   getReleaseVersions,
+  getStaleStatements,
   compareReleases,
 } from "../controllers/releaseController.js";
 
@@ -25,6 +26,8 @@ router.post("/:releaseId/approve", approveRelease);
 router.post("/:releaseId/reject", rejectRelease);
 router.post("/:releaseId/versions", createNewVersion);
 router.get("/:releaseId/versions", getReleaseVersions);
+router.get("/compare/:releaseId1/:releaseId2", compareReleases);
+router.get("/:releaseId/stale-statements", getStaleStatements);
 router.get("/:releaseId1/:releaseId2", compareReleases);
 
 export default router;

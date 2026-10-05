@@ -1,6 +1,3 @@
-// Compare release versions
-// Detect changed fields between two releases
-
 const compareReleases = (release1, release2) => {
   const fields = [
     "completedFeatures",
@@ -9,23 +6,27 @@ const compareReleases = (release1, release2) => {
     "qaSummary",
     "knownLimitations",
     "migrationNotes",
-    "affectedUserGroups"
+    "affectedUserGroups",
   ];
 
-  const comparison = fields.map(field => {
-    const oldValue = release1?.package?.[field];
-    const newValue = release2?.package?.[field];
-    const changed = String(oldValue) !== String(newValue);
+  const toComparableString = (value) => {
+    if (Array.isArray(value)) {
+      return value.map((item) => (item == null ? "" : String(item))).join("\n");
+    }
 
+    return value == null ? "" : String(value);
+  };
+
+  return fields.map((field) => {
+    const oldValue = toComparableString(release1?.package?.[field]);
+    const newValue = toComparableString(release2?.package?.[field]);
     return {
       field,
-      oldValue: Array.isArray(oldValue) ? oldValue : (oldValue || ""),
-      newValue: Array.isArray(newValue) ? newValue : (newValue || ""),
-      changed
+      oldValue,
+      newValue,
+      changed: oldValue !== newValue,
     };
   });
-
-  return comparison;
 };
 
 export default { compareReleases };

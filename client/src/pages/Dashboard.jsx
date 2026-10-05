@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import ReleaseForm from "../components/ReleaseForm";
 import ValidationPanel from "../components/ValidationPanel";
 import VersionHistory from "../components/VersionHistory";
+import StaleStatementDetection from "../components/StaleStatementDetection";
+import FinalReviewedBrief from "../components/FinalReviewedBrief";
 import { api } from "../services/api";
 
 const isRecord = (value) =>
@@ -162,11 +164,6 @@ const Dashboard = () => {
   const [isCreatingVersion, setIsCreatingVersion] = useState(false);
   const [newVersion, setNewVersion] = useState("");
   const [showCreateVersion, setShowCreateVersion] = useState(false);
-  const [comparisonLoading, setComparisonLoading] = useState(false);
-  const [comparisonResult, setComparisonResult] = useState(null);
-  const [selectedVersion1, setSelectedVersion1] = useState("");
-  const [selectedVersion2, setSelectedVersion2] = useState("");
-
   const currentStatus = createdRelease?.status || releaseStatus || "";
   const isApproved = currentStatus.toLowerCase() === "approved";
 
@@ -382,21 +379,6 @@ const handleRejectRelease = async () => {
     }
   };
 
-  const handleCompareVersions = async () => {
-    if (!selectedVersion1 || !selectedVersion2 || comparisonLoading) return;
-    setComparisonLoading(true);
-    try {
-      const result = await api.compareReleases(selectedVersion1, selectedVersion2);
-      setComparisonResult(result);
-    } catch (error) {
-      setAnalysisError(
-        getErrorMessage(error, "Failed to compare versions.")
-      );
-    } finally {
-      setComparisonLoading(false);
-    }
-  };
-
   const footerMessage = analysis
     ? "Review the generated analysis before approving the release."
     : createdRelease
@@ -551,42 +533,8 @@ const handleRejectRelease = async () => {
       )}
 
       <VersionHistory releaseId={createdRelease?.releaseId} />
-
-
-      {comparisonResult && (
-        <div className="mt-8 p-6 rounded-md bg-gray-50">
-          <h3 className="text-font-medium text-gray-900 mb-4">Version Comparison Result</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm font-medium text-gray-700">v{comparisonResult?.release1Version} → v{comparisonResult?.release2Version}</p>
-              <p className="text-xs text-gray-500">Comparison Date: {new Date().toLocaleDateString()}</p>
-            </div>
-          </div>
-
-          <div className="mt-4 space-y-4">
-            {comparisonResult?.comparison.map((item) => (
-              <div
-                key={item.field}
-                className={`p-3 rounded-md ${
-                  item.changed ? "bg-red-100" : "bg-green-100"
-                }`}
-              >
-                <p className="font-medium text-gray-700">{item.field}</p>
-                <div className="mt-2 flex justify-between">
-                  <span className="text-xs text-gray-500">OLD: {item.oldValue}</span>
-                  <span className="text-xs text-gray-500">NEW: {item.newValue}</span>
-                </div>
-                {item.changed && (
-                  <p className="mt-1 text-red-600 text-sm">🔴 CHANGED</p>
-                )}
-                {!item.changed && (
-                  <p className="mt-1 text-green-600 text-sm">✅ UNCHANGED</p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <StaleStatementDetection releaseId={createdRelease?.releaseId} />
+      {createdRelease && <FinalReviewedBrief release={createdRelease} />}
 
       {analysis && releaseStatus !== "approved" && releaseStatus !== "rejected" && (
                 <div className="mt-6 p-4 rounded-md bg-yellow-50 border-yellow-200">

@@ -100,6 +100,20 @@ export const getVersions = async (releaseId) => {
 };
 
 /**
+ * Detects package sections that may contain stale statements.
+ * GET /api/releases/:releaseId/stale-statements
+ *
+ * @param {string} releaseId - The current release ID
+ * @returns {Promise<Object>} API response with stale statement candidates
+ */
+export const getStaleStatements = async (releaseId) => {
+  const response = await apiInstance.get(
+    `/releases/${encodeURIComponent(releaseId)}/stale-statements`
+  );
+  return response.data;
+};
+
+/**
  * Compares two releases from the same version series.
  * GET /api/releases/compare/:releaseId1/:releaseId2
  *
@@ -107,12 +121,14 @@ export const getVersions = async (releaseId) => {
  * @param {string} releaseId2 - The second release ID
  * @returns {Promise<Object>} API response with comparison result
  */
-export const compareReleases = async (releaseId1, releaseId2) => {
+export const compareVersions = async (releaseId1, releaseId2) => {
   const response = await apiInstance.get(
-    `/releases/compare/${releaseId1}/${releaseId2}`
+    `/releases/compare/${encodeURIComponent(releaseId1)}/${encodeURIComponent(releaseId2)}`
   );
   return response.data;
 };
+
+export const compareReleases = compareVersions;
 
 /** API service object exposing all release methods. */
 export const api = {
@@ -124,5 +140,7 @@ export const api = {
   rejectRelease,
   createNewVersion,
   getVersions,
+  getStaleStatements,
+  compareVersions,
   compareReleases,
 };
