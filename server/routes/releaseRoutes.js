@@ -8,6 +8,9 @@ import {
   saveReview,
   approveRelease,
   rejectRelease,
+  createNewVersion,
+  getReleaseVersions,
+  compareReleases,
 } from "../controllers/releaseController.js";
 
 const router = Router();
@@ -20,5 +23,8 @@ router.post("/analyze", handleAnalyzeRelease);
 router.put("/:releaseId/review", saveReview);
 router.post("/:releaseId/approve", approveRelease);
 router.post("/:releaseId/reject", rejectRelease);
+router.post("/:releaseId/versions", createNewVersion);
+router.get("/:releaseId/versions", getReleaseVersions);
+router.get("/:releaseId1/:releaseId2", compareReleases);
 
 export default router;

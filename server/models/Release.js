@@ -58,6 +58,10 @@ const releaseSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    title: {
+      type: String,
+      default: "",
+    },
     package: {
       completedFeatures: [{ type: String }],
       bugFixes: [{ type: String }],
@@ -90,6 +94,12 @@ const releaseSchema = new mongoose.Schema(
       reviewedAt: Date,
       approvedAt: Date,
       rejectionReason: String,
+    },
+    releaseSeriesId: {
+      type: String,
+    },
+    previousReleaseId: {
+      type: String,
     },
     createdAt: {
       type: Date,

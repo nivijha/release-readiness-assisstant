@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import ReleaseForm from "../components/ReleaseForm";
 import ValidationPanel from "../components/ValidationPanel";
+import VersionHistory from "../components/VersionHistory";
 import { api } from "../services/api";
 
 const isRecord = (value) =>
@@ -158,6 +159,16 @@ const Dashboard = () => {
   const [isValidating, setIsValidating] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isCreatingVersion, setIsCreatingVersion] = useState(false);
+  const [newVersion, setNewVersion] = useState("");
+  const [showCreateVersion, setShowCreateVersion] = useState(false);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [comparisonResult, setComparisonResult] = useState(null);
+  const [selectedVersion1, setSelectedVersion1] = useState("");
+  const [selectedVersion2, setSelectedVersion2] = useState("");
+
+  const currentStatus = createdRelease?.status || releaseStatus || "";
+  const isApproved = currentStatus.toLowerCase() === "approved";
 
   const handleValidate = async (releaseData) => {
     setIsValidating(true);
@@ -304,6 +315,11 @@ const Dashboard = () => {
         throw new Error(body.message || "Approve failed");
       }
       setReleaseStatus("approved");
+      setCreatedRelease((currentRelease) => ({
+        ...currentRelease,
+        ...(isRecord(body.release) ? body.release : {}),
+        status: "approved",
+      }));
     } catch (error) {
       setAnalysisError(
         getErrorMessage(error, "Failed to approve release.")
@@ -313,10 +329,8 @@ const Dashboard = () => {
     }
   };
 
-  const handleRejectRelease = async () => {
-    if (!analysis || !reviewSaved || !createdRelease?.releaseId || isRejecting) {
-      return;
-    }
+const handleRejectRelease = async () => {
+    if (!createdRelease?.releaseId || isRejecting) return;
 
     setIsRejecting(true);
     try {
@@ -334,6 +348,52 @@ const Dashboard = () => {
       );
     } finally {
       setIsRejecting(false);
+    }
+  };
+
+  const handleCreateVersion = async () => {
+    if (
+      !createdRelease?.releaseId ||
+      !isApproved ||
+      isCreatingVersion ||
+      !newVersion.trim()
+    ) {
+      return;
+    }
+
+    setIsCreatingVersion(true);
+    try {
+      const result = await api.createNewVersion(createdRelease.releaseId, { version: newVersion.trim() });
+      // Switch UI to the new version by resetting state
+      setCreatedRelease(result.release);
+      setAnalysis(null);
+      setEditedInternalSummary("");
+      setEditedStakeholderSummary("");
+      setReviewSaved(false);
+      setReleaseStatus("draft");
+      setShowCreateVersion(false);
+      setNewVersion("");
+    } catch (error) {
+      setAnalysisError(
+        getErrorMessage(error, "Failed to create new version.")
+      );
+    } finally {
+      setIsCreatingVersion(false);
+    }
+  };
+
+  const handleCompareVersions = async () => {
+    if (!selectedVersion1 || !selectedVersion2 || comparisonLoading) return;
+    setComparisonLoading(true);
+    try {
+      const result = await api.compareReleases(selectedVersion1, selectedVersion2);
+      setComparisonResult(result);
+    } catch (error) {
+      setAnalysisError(
+        getErrorMessage(error, "Failed to compare versions.")
+      );
+    } finally {
+      setComparisonLoading(false);
     }
   };
 
@@ -441,9 +501,94 @@ const Dashboard = () => {
                 analysisError={analysisError}
               />
 
-              {statusDisplay()}
+{statusDisplay()}
 
-              {analysis && releaseStatus !== "approved" && releaseStatus !== "rejected" && (
+      {createdRelease && (
+        <div className="mt-4">
+          <button
+            onClick={() => setShowCreateVersion(true)}
+            disabled={!createdRelease || !isApproved || isCreatingVersion}
+            className="mb-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Create New Version
+          </button>
+
+          {showCreateVersion && (
+            <div className="mt-3">
+              <input
+                type="text"
+                value={newVersion}
+                onChange={(e) => setNewVersion(e.target.value)}
+                placeholder="v2.4.1"
+                className="w-full px-3 py-2 border rounded-md mb-2"
+              />
+              <button
+                onClick={handleCreateVersion}
+                disabled={isCreatingVersion}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isCreatingVersion ? "Creating..." : "Create Version"}
+              </button>
+              {createdRelease && !isCreatingVersion && !isApproved && (
+                <p className="mt-2 text-sm text-red-600">
+                  Create New Version is only available for approved releases.
+                </p>
+              )}
+              {createdRelease && isCreatingVersion && !isApproved && (
+                <p className="mt-2 text-sm text-red-600">
+                  Cannot create new version: release is not approved.
+                </p>
+              )}
+              <button
+                onClick={() => setShowCreateVersion(false)}
+                className="mt-2 px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      <VersionHistory releaseId={createdRelease?.releaseId} />
+
+
+      {comparisonResult && (
+        <div className="mt-8 p-6 rounded-md bg-gray-50">
+          <h3 className="text-font-medium text-gray-900 mb-4">Version Comparison Result</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm font-medium text-gray-700">v{comparisonResult?.release1Version} → v{comparisonResult?.release2Version}</p>
+              <p className="text-xs text-gray-500">Comparison Date: {new Date().toLocaleDateString()}</p>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-4">
+            {comparisonResult?.comparison.map((item) => (
+              <div
+                key={item.field}
+                className={`p-3 rounded-md ${
+                  item.changed ? "bg-red-100" : "bg-green-100"
+                }`}
+              >
+                <p className="font-medium text-gray-700">{item.field}</p>
+                <div className="mt-2 flex justify-between">
+                  <span className="text-xs text-gray-500">OLD: {item.oldValue}</span>
+                  <span className="text-xs text-gray-500">NEW: {item.newValue}</span>
+                </div>
+                {item.changed && (
+                  <p className="mt-1 text-red-600 text-sm">🔴 CHANGED</p>
+                )}
+                {!item.changed && (
+                  <p className="mt-1 text-green-600 text-sm">✅ UNCHANGED</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {analysis && releaseStatus !== "approved" && releaseStatus !== "rejected" && (
                 <div className="mt-6 p-4 rounded-md bg-yellow-50 border-yellow-200">
                   <h3 className="font-medium text-yellow-800 mb-2">Release Readiness</h3>
                   <p className="text-sm text-yellow-700">

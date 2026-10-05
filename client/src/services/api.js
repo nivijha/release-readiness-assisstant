@@ -74,6 +74,46 @@ export const rejectRelease = async (releaseId, reason) => {
   return response.data;
 };
 
+/**
+ * Creates a new version from an existing release.
+ * POST /api/releases/:releaseId/versions
+ *
+ * @param {string} releaseId - The source release ID
+ * @param {Object} versionData - { version: string }
+ * @returns {Promise<Object>} API response with new release
+ */
+export const createNewVersion = async (releaseId, versionData) => {
+  const response = await apiInstance.post(`/releases/${releaseId}/versions`, versionData);
+  return response.data;
+};
+
+/**
+ * Gets all versions belonging to the same release series.
+ * GET /api/releases/:releaseId/versions
+ *
+ * @param {string} releaseId - The source release ID
+ * @returns {Promise<Object>} API response with version history
+ */
+export const getVersions = async (releaseId) => {
+  const response = await apiInstance.get(`/releases/${releaseId}/versions`);
+  return response.data;
+};
+
+/**
+ * Compares two releases from the same version series.
+ * GET /api/releases/compare/:releaseId1/:releaseId2
+ *
+ * @param {string} releaseId1 - The first release ID
+ * @param {string} releaseId2 - The second release ID
+ * @returns {Promise<Object>} API response with comparison result
+ */
+export const compareReleases = async (releaseId1, releaseId2) => {
+  const response = await apiInstance.get(
+    `/releases/compare/${releaseId1}/${releaseId2}`
+  );
+  return response.data;
+};
+
 /** API service object exposing all release methods. */
 export const api = {
   validateRelease,
@@ -82,4 +122,7 @@ export const api = {
   saveReview,
   approveRelease,
   rejectRelease,
+  createNewVersion,
+  getVersions,
+  compareReleases,
 };

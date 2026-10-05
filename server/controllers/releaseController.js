@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Release from "../models/Release.js";
 import { validateReleasePackage } from "../services/validationService.js";
 import { analyzeRelease as aiAnalyzeRelease } from "../services/aiService.js";
+import diffService from "../services/diffService.js";
 
 export const getHealth = (req, res) => {
   res.json({
@@ -284,7 +285,7 @@ export const rejectRelease = async (req, res) => {
 
     // Set status and rejection information
     release.status = "rejected";
-    release.review.rejectionReason =
+release.review.rejectionReason =
       typeof reason === "string" && reason.trim()
         ? reason.trim()
         : "No reason provided.";
@@ -303,6 +304,198 @@ export const rejectRelease = async (req, res) => {
   }
 };
 
+/**
+ * Create a new version from an existing release.
+ * POST /api/releases/:releaseId/versions
+ *
+ * The new version:
+ * - receives a new releaseId
+ * - inherits the releaseSeriesId (or source's releaseId if first)
+ * - sets previousReleaseId to the source releaseId
+ * - copies the release package as the starting point
+ * - resets status to "draft"
+ * - resets review (no saved summaries, no approval/rejection)
+ * - resets analysis (empty, must be analyzed again)
+ * - has new createdAt/updatedAt
+ * - does NOT modify the original release
+ */
+export const createNewVersion = async (req, res) => {
+  try {
+    const { releaseId } = req.params;
+    const { version } = req.body;
+
+    const sourceRelease = await Release.findOne({ releaseId });
+    if (!sourceRelease) {
+      return res.status(404).json({
+        success: false,
+        message: "Release not found",
+      });
+    }
+
+    // NEW: A new version can only be created from an approved release
+    if (sourceRelease.status !== "approved") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "A new version can only be created from an approved release.",
+      });
+    }
+
+    // NEW: Check whether a Release already exists with the same series + version
+    const existingVersion = await Release.findOne({
+      releaseSeriesId: sourceRelease.releaseSeriesId || sourceRelease.releaseId,
+      version,
+    });
+
+    if (existingVersion) {
+      return res.status(409).json({
+        success: false,
+        message: `Version ${version} already exists in this release series.`,
+      });
+    }
+
+    // New release gets a fresh ID
+    const newReleaseId = `release-${Date.now()}`;
+
+    // Inherit series: if source has releaseSeriesId, use it;
+    // otherwise use source's own releaseId (makes it the series founder)
+    const releaseSeriesId = sourceRelease.releaseSeriesId || sourceRelease.releaseId;
+
+    const newRelease = new Release({
+      releaseId: newReleaseId,
+      version,
+      releaseSeriesId,
+      previousReleaseId: sourceRelease.releaseId,
+      title: sourceRelease.title || "",
+      package: {
+        completedFeatures: [...sourceRelease.package.completedFeatures],
+        bugFixes: [...sourceRelease.package.bugFixes],
+        changedBehaviour: [...sourceRelease.package.changedBehaviour],
+        qaSummary: sourceRelease.package.qaSummary,
+        knownLimitations: [...sourceRelease.package.knownLimitations],
+        migrationNotes: [...sourceRelease.package.migrationNotes],
+        affectedUserGroups: [...sourceRelease.package.affectedUserGroups],
+      },
+      generatedBrief: {
+        internalSummary: "",
+        stakeholderSummary: "",
+      },
+      analysis: {
+        impactAnalysis: [],
+        missingInformation: [],
+        unsupportedClaims: [],
+        risks: [],
+        internalSummary: { text: "", evidence: [] },
+        stakeholderSummary: { text: "", evidence: [] },
+      },
+      status: "draft",
+      review: {
+        internalSummary: "",
+        stakeholderSummary: "",
+        reviewedAt: null,
+        approvedAt: null,
+        rejectionReason: "",
+      },
+    });
+
+    await newRelease.save();
+
+    res.json({
+      success: true,
+      release: newRelease,
+    });
+  } catch (error) {
+    console.error("Create new version error:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Failed to create new version",
+    });
+  }
+};
+
+/**
+ * Get all versions belonging to the same release series.
+ * GET /api/releases/:releaseId/versions
+ */
+export const getReleaseVersions = async (req, res) => {
+  try {
+    const { releaseId } = req.params;
+
+    const sourceRelease = await Release.findOne({ releaseId });
+    if (!sourceRelease) {
+      return res.status(404).json({
+        success: false,
+        message: "Release not found",
+      });
+    }
+
+    // Resolve the series ID:
+    // - If sourceRelease has releaseSeriesId, use it
+    // - Otherwise, the source release itself is the founder, so use its releaseId
+    const seriesId = sourceRelease.releaseSeriesId || sourceRelease.releaseId;
+
+    // Find all releases in the same series, supporting BOTH:
+    // 1. Modern releases with releaseSeriesId explicitly set
+    // 2. The original/founder release whose releaseSeriesId is missing
+    //    but whose releaseId === seriesId
+    const versions = await Release.find({
+      $or: [
+        { releaseSeriesId: seriesId },
+        { releaseId: seriesId },
+      ],
+    })
+      .sort({ createdAt: -1 })
+      .select("releaseId version title status createdAt updatedAt previousReleaseId");
+
+    res.json({
+      success: true,
+      versions,
+    });
+  } catch (error) {
+    console.error("Get release versions error:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get release versions",
+    });
+  }
+};
+
+/**
+ * Compare two releases.
+ * GET /api/releases/compare/:releaseId1/:releaseId2
+ */
+export const compareReleases = async (req, res) => {
+  try {
+    const { releaseId1, releaseId2 } = req.params;
+
+    const release1 = await Release.findOne({ releaseId: releaseId1 });
+    const release2 = await Release.findOne({ releaseId: releaseId2 });
+
+    if (!release1 || !release2) {
+      return res.status(404).json({
+        success: false,
+        message: "One or both releases not found",
+      });
+    }
+
+    const comparison = diffService.compareReleases(release1, release2);
+
+    res.json({
+      success: true,
+      comparison,
+    });
+  } catch (error) {
+    console.error("Compare releases error:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Failed to compare releases",
+    });
+  }
+};
+
+/**
+ * HandleAnalyzeRelease - unchanged existing handler
+ */
 export const handleAnalyzeRelease = async (req, res) => {
   try {
     const releaseData = req.body;
