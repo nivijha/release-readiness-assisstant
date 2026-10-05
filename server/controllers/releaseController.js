@@ -136,6 +136,10 @@ export const updateDraftRelease = async (req, res) => {
 
     const data = req.body || {};
     release.title = typeof data.title === "string" ? data.title : release.title;
+    release.releaseDate =
+      typeof data.releaseDate === "string"
+        ? data.releaseDate
+        : release.releaseDate;
     release.package = release.package || {};
     for (const field of packageListFields) {
       if (typeof data[field] === "string") {
@@ -240,12 +244,59 @@ export const createRelease = async (req, res) => {
 
     const releaseId =
       releaseData.releaseId || `release-${new mongoose.Types.ObjectId()}`;
+    let releaseSeriesId = releaseId;
+    let previousReleaseId;
 
-    // The first release anchors the series; future versions inherit this ID.
+    if (typeof releaseData.previousReleaseId === "string") {
+      const sourceRelease = await Release.findOne({
+        releaseId: releaseData.previousReleaseId,
+      });
+      if (!sourceRelease) {
+        return res.status(404).json({
+          success: false,
+          message: "Source release not found",
+        });
+      }
+      if (sourceRelease.status !== "approved") {
+        return res.status(400).json({
+          success: false,
+          message: "A new version can only be created from an approved release.",
+        });
+      }
+
+      releaseSeriesId =
+        sourceRelease.releaseSeriesId || sourceRelease.releaseId;
+      previousReleaseId = sourceRelease.releaseId;
+      const seriesReleases = await Release.find({
+        $or: [
+          { releaseSeriesId },
+          { releaseId: releaseSeriesId },
+        ],
+      }).select("version");
+      if (
+        seriesReleases.some(
+          (existingRelease) =>
+            normalizeVersion(existingRelease.version) ===
+            normalizeVersion(releaseData.version)
+        )
+      ) {
+        return res.status(409).json({
+          success: false,
+          message: "This version already exists in the release series.",
+        });
+      }
+    }
+
     const release = new Release({
       releaseId,
       version: releaseData.version || "1",
-      releaseSeriesId: releaseId,
+      title: typeof releaseData.title === "string" ? releaseData.title : "",
+      releaseDate:
+        typeof releaseData.releaseDate === "string"
+          ? releaseData.releaseDate
+          : "",
+      releaseSeriesId,
+      previousReleaseId,
       package: {
         completedFeatures: releaseData.completedFeatures,
         bugFixes: releaseData.bugFixes,

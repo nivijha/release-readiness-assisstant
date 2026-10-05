@@ -2,394 +2,292 @@
 
 ## 1. Overview
 
-The **Release Communication and Readiness Brief Assistant** is a full-stack web application that helps teams manage release readiness and communicate release changes effectively.
+The Release Communication and Readiness Brief Assistant is a React web application with an Express API and MongoDB persistence. It helps teams organize release information, assess readiness, and prepare internal and stakeholder-facing summaries.
 
-**Core Problem:** Release information is often scattered across different documents and stakeholders, requiring manual effort to determine user impact, identify missing information, flag unsupported claims, assess risks, and generate appropriate communication briefs. This application centralizes that process.
-
-**What it does:** The application accepts a structured release package as input, performs deterministic validation of required sections, uses Gemini AI to analyze the package, and produces structured insights including impact analysis, missing information, unsupported claims, risks, and internal/stakeholder summaries. Critically, it implements a human review workflow where generated summaries can be edited before the release is approved or rejected.
-
-The workflow flows: Fill release form → Validate → Create Release → Analyze Release → Edit summaries → Save Review → Approve/Reject → Create New Version → Version Comparison.
+Release details are often scattered, making it time-consuming to understand user impact, identify missing information and risks, and communicate changes. This application collects a structured release package, checks required sections deterministically, and can submit the package to a server-side Gemini workflow for analysis. A person reviews and can edit the generated summaries before approval.
 
 ## 2. Key Features
 
-The following features are **implemented** in this application:
-
-- **Required-release-section validation:** Deterministic check that all required fields (completedFeatures, bugFixes, changedBehaviour, qaSummary, knownLimitations, migrationNotes, affectedUserGroups) are present and not empty.
-- **Release creation:** Persists release packages to MongoDB with version, title, package metadata, generatedBrief, and analysis fields.
-- **AI-based user impact classification:** Gemini AI analyzes the release package and produces impact analysis (classified as Low/Medium/High), missing information, unsupported claims, and risks.
-- **Missing information detection:** AI identifies items of useful missing information for release readiness.
-- **Unsupported claim detection:** AI identifies claims that are not supported by the supplied QA evidence.
-- **Risk identification:** AI identifies risks and classifies their severity (Low/Medium/High).
-- **Internal summary generation:** AI generates a technical summary for developers, QA, and release managers.
-- **Stakeholder summary generation:** AI generates a client-friendly summary for stakeholders and non-technical users.
-- **Evidence/source information:** Impact analysis items, unsupported claims, and risks include source evidence and reasoning.
-- **Human editing of generated summaries:** Users can edit the AI-generated internal and stakeholder summaries without modifying the original AI analysis.
-- **Review and approval/rejection workflow:** Users can save reviewed summaries, approve the release (status → "approved"), or reject it (status → "rejected") with a reason.
-- **Release version preservation:** Creating a new version preserves the original release completely untouched; a new document is created with copied package data and reset analysis/review.
-- **Version history:** All versions in a release series can be listed, showing version number, status, and lineage (previousReleaseId).
-- **Version comparison:** Compares two releases from the same series and identifies which package fields changed or remained unchanged.
-- **Loading, validation, success, and failure states:** The UI provides appropriate feedback at each step of the workflow.
+- **Required-section validation:** Checks the seven required package sections for missing or whitespace-only values.
+- **Release creation and persistence:** Creates a draft release document in MongoDB after validation.
+- **AI release analysis:** Requests structured impact analysis, missing information, unsupported claims, risks, and summaries from Gemini.
+- **Evidence-oriented analysis:** Analysis records include supporting evidence or source/reason fields where the response schema defines them. Unsupported claims are assessed against the supplied QA summary.
+- **Human-edited summaries:** Internal and stakeholder summaries can be edited and saved separately from the original AI analysis.
+- **Review and decision workflow:** A release can be approved or rejected by a user after analysis and a saved review. Rejection may include a reason.
+- **Version preservation and history:** Creating a new version creates a separate draft document, preserves its source release, and links it to the series.
+- **Version comparison:** Compares package values between two different versions from the same release series.
+- **Stale statement candidates:** Reports package sections that differ from the directly linked previous release. This is a deterministic value comparison, not semantic interpretation.
+- **Final reviewed brief:** Displays reviewed summaries and selected analysis/package details for an approved release.
+- **Interaction feedback:** The frontend has loading, success, validation, empty, and error messages for the implemented operations.
 
 ## 3. Application Workflow
 
-The application implements the following step-by-step workflow:
+1. Enter the release version, title, release date, and package details in the Release Package form.
+2. Validate the seven required package sections.
+3. Create the release. The API creates a draft in MongoDB.
+4. Request analysis. The backend validates the package again, calls Gemini, validates the response shape, and saves the analysis on the release.
+5. Review the impact analysis, missing information, unsupported claims, and risks.
+6. Edit the internal and stakeholder summaries if needed.
+7. Save the edited summaries as the human review.
+8. Approve or reject the release. Both decisions require analysis and saved review; approval is a human action.
+9. From an approved release, create the next draft version. The previous release remains a separate record.
+10. View the series history and compare two distinct versions.
+11. View stale statement candidates based on changes to the new version's linked predecessor.
+12. View the Final Reviewed Brief when the active release is approved.
 
-1. **Enter release package** — Fill in the release form with version, title, release date, completed features, bug fixes, changed behavior, QA summary, known limitations, migration notes, and affected user groups.
-2. **Validate required sections** — The application validates that all 7 required fields are present and not empty.
-3. **Create/persist release** — The release is saved to MongoDB with status "draft". A releaseId and version are assigned.
-4. **Run AI analysis** — The validated release package is sent to Gemini AI for analysis. The AI produces impactAnalysis, missingInformation, unsupportedClaims, risks, internalSummary, and stakeholderSummary.
-5. **Review impact, missing information, unsupported claims, and risks** — The AI analysis appears in panels: ImpactPanel, MissingInformationList, UnsupportedClaimsPanel, RisksPanel.
-6. **Edit generated summaries if required** — Users can edit the AI-generated internal summary and stakeholder summary. The original AI analysis is preserved; a separate reviewed state is maintained.
-7. **Save review** — The user-edited summaries are saved via PUT /api/releases/:releaseId/review. The AI analysis is preserved unchanged.
-8. **Approve or reject release** — 
-   - **Approve:** Sets status to "approved", stores approval timestamp. The AI must never automatically approve; this happens only when the user clicks [Approve Release].
-   - **Reject:** Sets status to "rejected", stores the rejection reason and timestamp.
-9. **Create a new release version after approval** — From an approved release, a new version can be created. The original approved release remains completely untouched; a new draft release is created with copied package data, inherited release series ID, and previousReleaseId linking to the source.
-10. **Compare different release versions** — Users can select two versions from the same series and compare them. The comparison identifies which of the 7 package fields (completedFeatures, bugFixes, changedBehaviour, qaSummary, knownLimitations, migrationNotes, affectedUserGroups) changed or remained unchanged.
-11. **Detect stale statements** — When comparing versions, statements that differ between versions may indicate stale previous statements.
-12. **View final reviewed brief after approval** — After approval, the release status shows "APPROVED" and the reviewed brief (edited summaries, approval timestamp) is displayed.
-
-Only steps 1–8 are fully implemented in the current version. Steps 9–12 are implemented as part of Priority 2 and Priority 3.
+The release date is collected in the form and passed in analysis input, but it is not declared in the active MongoDB schema or assigned by the create/update controllers; see [Known Limitations](#20-known-limitations).
 
 ## 4. Architecture
 
-**Frontend:**
-- React with Vite
-- Tailwind CSS for styling
-- Axios for API calls
-- React Router for navigation
+**Frontend:** React 18, Vite, Tailwind CSS, Axios, and React Router DOM.
 
-**Backend:**
-- Node.js with Express
-- RESTful API
-- Mongoose ODM for MongoDB
+**Backend:** Node.js ES modules, Express, Mongoose, dotenv, and CORS middleware.
 
-**Database:**
-- MongoDB
+**Database:** MongoDB, connected by the backend using `MONGODB_URI`. The repository does not establish whether a particular deployment uses MongoDB Atlas.
 
-**AI:**
-- Gemini API (server-side only; API key never sent to frontend)
+**AI:** Gemini 2.5 Flash, called directly from the server-side AI service. The browser does not receive the Gemini key.
 
-**Request Flow:**
+Request flow:
 
 ```text
 Browser
-  |
-  v
+   |
+   v
 React + Vite frontend
-  |
-  | REST API calls (Axios)
-  v
-Express Backend
-  |
-  +----- Validation Service (deterministic field checks)
-  |
-  +----- AI Service (Gemini API calls)
-  |
-  +----- Release Controller (route handlers)
-  |
-  v
-MongoDB (persistent storage)
+   |  Axios REST request
+   v
+Express API (/api/releases)
+   |
+   +---- Deterministic validation service
+   |
+   +---- Release controller ---- Mongoose ---- MongoDB
+   |
+   +---- AI service (analysis request only) ---- Gemini API
+   |
+   v
+JSON response to the frontend
 ```
+
+Validation, review, version management, comparison, and stale-statement checks are implemented by the Express application. Gemini is only used for the analysis operation.
 
 ## 5. Tech Stack
 
 | Layer | Technology | Purpose |
-|-------|-----------|---------|
-| Frontend | React 18 | UI library |
-| Frontend | Vite 5 | Build tool and dev server |
-| Frontend | Tailwind CSS 3 | Styling |
-| Frontend | Axios 1 | HTTP client |
-| Frontend | React Router DOM 6 | Navigation |
-| Backend | Node.js | Runtime |
-| Backend | Express 4 | Web framework |
-| Backend | Mongoose 8 | MongoDB ODM |
-| Database | MongoDB | Document database |
-| AI | Gemini Flash | AI analysis (server-side only) |
+|---|---|---|
+| Frontend | React 18 | Dashboard and release workflow UI |
+| Frontend build/dev server | Vite 5 | Frontend development and production build |
+| Frontend styling | Tailwind CSS 3 | Utility-based UI styling |
+| Frontend HTTP/routing | Axios, React Router DOM 6 | API requests and router wrapper |
+| Backend | Node.js, Express 4 | HTTP API and request handling |
+| Backend data access | Mongoose 8 | MongoDB models and queries |
+| Database | MongoDB | Release, analysis, and review persistence |
+| AI | Gemini 2.5 Flash API | Structured release analysis |
+| Deployment | Not specified in repository | No provider-specific deployment manifest or URL is tracked |
 
 ## 6. Data Model
 
-The **Release** MongoDB schema includes the following important fields:
+The application imports the active model from `server/models/Release.js`. Important fields are:
 
-| Field | Type | Description |
-|-------|------|-----------|
-| `releaseId` | String | Unique release identifier |
-| `version` | String | Release version (e.g., "1", "2.4.0") |
-| `title` | String | Release title |
-| `package` | Object | Release package data containing: completedFeatures, bugFixes, changedBehaviour, qaSummary, knownLimitations, migrationNotes, affectedUserGroups |
-| `generatedBrief` | Object | AI-generated brief: internalSummary, stakeholderSummary |
-| `analysis` | Object | Full AI analysis: impactAnalysis, missingInformation, unsupportedClaims, risks, internalSummary, stakeholderSummary |
-| `status` | String | Current state: "draft", "approved", "rejected" |
-| `review` | Object | Human-reviewed content: internalSummary, stakeholderSummary, reviewedAt, approvedAt, rejectionReason |
-| `releaseSeriesId` | String | Groups versions belonging to the same release series |
-| `previousReleaseId` | String | Links a version to its predecessor |
-| `createdAt` | Date | Timestamp |
-| `updatedAt` | Date | Timestamp |
+| Field | Purpose |
+|---|---|
+| `releaseId` | Unique application-level identifier |
+| `version` | Release version label |
+| `title` | Release title |
+| `package` | `completedFeatures`, `bugFixes`, `changedBehaviour`, `knownLimitations`, `migrationNotes`, and `affectedUserGroups` are string arrays; `qaSummary` is a string |
+| `analysis` | AI-generated impact analysis, missing information, unsupported claims, risks, internal summary, and stakeholder summary |
+| `generatedBrief` | Schema fields for internal and stakeholder summaries; current create/version handlers initialize these as empty strings |
+| `review` | Human-edited summaries, review and approval timestamps, and rejection reason |
+| `status` | `draft`, `approved`, or `rejected` |
+| `releaseSeriesId` | Groups releases in one version series |
+| `previousReleaseId` | Links a new version to its source release |
+| `createdAt`, `updatedAt` | Mongoose timestamps |
 
-**Key distinctions:**
-
-- **Package data:** The release package contents (features, fixes, behavior changes, etc.). Preserved when creating new versions.
-- **AI analysis:** The Gemini-produced impactAnalysis, missingInformation, unsupportedClaims, risks, internalSummary, stakeholderSummary. **Never overwritten** when saving review edits.
-- **Human review:** The user-edited summaries stored in `review.internalSummary` and `review.stakeholderSummary`. Separate from AI-generated content.
-- **Release status:** "draft" → after analysis: "analyzed" → after approve: "approved" → after reject: "rejected".
-- **Version lineage:** `previousReleaseId` traces back to the source release; `releaseSeriesId` groups all versions of the same release.
+Package data is the user-supplied release content. AI analysis is stored separately from human review. A review contains the edited summaries and review metadata. Status records the workflow state. Version lineage is represented by the series ID and previous release ID. Older series can be resolved using the release ID when a legacy release has no `releaseSeriesId`.
 
 ## 7. API Endpoints
 
-The following **implemented** endpoints exist:
+The router is mounted at `/api/releases`; the separate health endpoint is mounted at `/api/health`.
 
 | Method | Endpoint | Purpose |
-|--------|----------|---------|
-| `POST` | `/api/releases/validate` | Validate release package fields |
-| `POST` | `/api/releases` | Create a new release (status: draft) |
-| `POST` | `/api/releases/analyze` | Run AI analysis on a release |
-| `PUT` | `/api/releases/:releaseId/review` | Save user-edited summaries |
-| `POST` | `/api/releases/:releaseId/approve` | Approve a release (status → "approved") |
-| `POST` | `/api/releases/:releaseId/reject` | Reject a release (status → "rejected") |
-| `POST` | `/api/releases/:releaseId/versions` | Create a new version from an approved release |
-| `GET` | `/api/releases/:releaseId/versions` | Get all versions in the same series |
-| `GET` | `/api/releases/:releaseId1/:releaseId2` | Compare two releases |
-| `GET` | `/api/health` | API health check |
+|---|---|---|
+| `GET` | `/api/health` | API health response |
+| `GET` | `/api/releases/health` | Release-router health response |
+| `GET` | `/api/releases` | List releases, newest first |
+| `POST` | `/api/releases/validate` | Validate required package sections |
+| `POST` | `/api/releases` | Validate and create a draft release |
+| `GET` | `/api/releases/:releaseId` | Fetch one release |
+| `PUT` | `/api/releases/:releaseId` | Update a draft release package |
+| `POST` | `/api/releases/analyze` | Validate, analyze with Gemini, and persist analysis |
+| `PUT` | `/api/releases/:releaseId/review` | Save reviewed summaries |
+| `POST` | `/api/releases/:releaseId/approve` | Approve after analysis and saved review |
+| `POST` | `/api/releases/:releaseId/reject` | Reject after analysis and saved review |
+| `POST` | `/api/releases/:releaseId/versions` | Create the next draft version from an approved release |
+| `GET` | `/api/releases/:releaseId/versions` | Get up to five distinct versions in the release series |
+| `GET` | `/api/releases/compare/:releaseId1/:releaseId2` | Compare two different versions from the same series |
+| `GET` | `/api/releases/:releaseId/stale-statements` | Find changed sections relative to the linked previous release |
+| `GET` | `/api/releases/:releaseId1/:releaseId2` | Alternate comparison route also registered by the release router |
+
+The comparison handler rejects identical normalized version labels and releases from different series. API errors use JSON responses with an error message; exact status codes depend on the failure (for example, validation, not found, or upstream AI errors).
 
 ## 8. AI Workflow
 
-- **AI is called server-side only.** The API key is never sent to the frontend.
-- **The application first performs deterministic validation.** All 7 required fields must pass before AI is invoked.
-- **The AI receives the supplied release information** (version, title, completedFeatures, bugFixes, changedBehaviour, qaSummary, knownLimitations, migrationNotes, affectedUserGroups).
-- **AI classifies user impact:** Impact analysis items are classified as Low/Medium/High with reasoning.
-- **AI identifies missing information:** Items useful for release readiness are reported.
-- **AI identifies unsupported claims:** Claims not supported by the supplied QA evidence are explicitly identified.
-- **AI identifies risks:** Risks and their severity (Low/Medium/High) are reported.
-- **AI generates internal and stakeholder summaries:** Technical and client-friendly summaries are produced.
-- **The AI must not invent facts or outcomes.** All statements must be based on the supplied release package.
-- **Human review remains required before approval.** AI-generated content is stored separately from human-reviewed content, and approval only happens when the user explicitly clicks [Approve Release].
+- The Gemini request is made by the backend; `GEMINI_API_KEY` is not a frontend setting.
+- The analysis endpoint runs deterministic package validation before calling the AI service.
+- The request includes the version/title/date and supplied package sections.
+- The prompt requests impact classification, missing information, unsupported claims based on the supplied QA summary, risks, and internal/stakeholder summaries.
+- The service requests JSON, parses the response, and validates the expected top-level and item structure before the controller persists it.
+- The prompt instructs Gemini to use only supplied facts, preserve stated limitations, and not decide whether to approve or reject. These are prompt constraints, not a guarantee that model output is always correct.
+- Human review and approval remain separate from AI analysis.
 
-**Data preservation:** AI-generated analysis and human-reviewed content are stored separately in the MongoDB document. The `analysis` field retains the original AI output, while `review` stores the user-reviewed summaries, timestamps, and approval/rejection status.
+The AI analysis is stored under `analysis`; reviewed summaries and decision metadata are stored under `review`. The existing `generatedBrief` schema field is initialized empty by the create/version handlers and is not the active review store.
 
 ## 9. Human Review and Approval
 
-- **Generated summaries can be edited:** Users modify the AI-generated internal and stakeholder summaries in editable textareas.
-- **Review can be saved:** Edited summaries are saved via the API; the original AI analysis is preserved.
-- **Release can be approved:** When the user clicks [Approve Release], the status changes to "approved" and `review.approvedAt` is set.
-- **Release can be rejected:** When the user clicks [Reject Release] and provides a reason, the status changes to "rejected" and `review.rejectionReason` is stored.
-- **Approval represents human acceptance.** The AI does not independently approve the release; human action is required.
+The UI allows users to edit the AI-generated internal and stakeholder summaries and save them through the review endpoint. The original analysis remains separate. Approval and rejection require analysis and saved, non-empty summaries. Approval records an approval timestamp. Rejection records the provided reason, or a fallback reason when none is supplied. The AI service is explicitly instructed not to approve or reject; the API decision is triggered by a user action.
 
 ## 10. Versioning
 
-The implemented versioning model works as follows:
+- A new version is allowed only from an approved source release.
+- The backend accepts only `vX.Y.Z` or `X.Y.Z`-style versions for automatic creation and computes a free next minor version (`Y + 1`, patch reset to `0`).
+- A new MongoDB document gets a new `releaseId`, inherits the series ID (with a legacy fallback), and records the source in `previousReleaseId`.
+- The package values are copied into the new draft. Analysis and review are reset.
+- The source record is not overwritten by the create-new-version handler.
+- The version-history endpoint sorts newest first and limits the database query to five; duplicate version labels are collapsed in the response. The UI also caps the list at five.
 
-- **Previous versions are preserved:** When a new version is created, the original release remains completely untouched in MongoDB.
-- **New versions receive new release IDs:** A new `releaseId` is generated (e.g., `release-${Date.now()}`).
-- **`previousReleaseId` represents lineage:** The new version's `previousReleaseId` is set to the source release's `releaseId`.
-- **`releaseSeriesId` groups versions:** All versions in a series share the same `releaseSeriesId`. For the first release in a series, `releaseSeriesId` equals its own `releaseId`.
-- **Creating a new version should not overwrite the previous release:** The `createNewVersion` endpoint explicitly checks for duplicate version numbers and returns HTTP 409 if the version already exists in the series. It also checks that the source release is "approved" before allowing version creation.
-
-**Intended lifecycle:**
-```
-DRAFT → VALIDATE → ANALYZE → REVIEW → APPROVED → CREATE NEW VERSION → DRAFT
-```
+Comparison is for two different release versions, for example `v3.0.0 → v3.1.0`, not separate draft and approved states of the same version.
 
 ## 11. Version Comparison
 
-The version comparison feature identifies which of the 7 package sections changed or remained unchanged between two releases from the same series:
+The comparison service checks these seven package fields:
 
-- **Completed Features** — Changed/Unchanged
-- **Bug Fixes** — Changed/Unchanged
-- **Changed Behaviour** — Changed/Unchanged
-- **QA Summary** — Changed/Unchanged
-- **Known Limitations** — Changed/Unchanged
-- **Migration Notes** — Changed/Unchanged
-- **Affected User Groups** — Changed/Unchanged
+- Completed Features (`completedFeatures`)
+- Bug Fixes (`bugFixes`)
+- Changed Behaviour (`changedBehaviour`)
+- QA Summary (`qaSummary`)
+- Known Limitations (`knownLimitations`)
+- Migration Notes (`migrationNotes`)
+- Affected User Groups (`affectedUserGroups`)
 
-Comparison uses exact string/array comparison. A field is marked `changed` if the old value differs from the new value; otherwise it is `UNCHANGED`. Changed sections are visually highlighted (red background), unchanged sections show as green.
+Array values are converted to newline-joined strings and scalar values to strings before exact comparison. Each section is returned with old/new values and a `changed` boolean. This is not a semantic or AI-generated diff.
 
 ## 12. Stale Statement Detection
 
-When comparing two versions, if a statement differs between them, the previous statement may be stale.
+The stale-statement endpoint loads the current release and its directly linked `previousReleaseId`. It uses the same package diff logic and returns each changed section as a possible stale statement, with old/current versions, values, and a fixed explanation. If there is no linked predecessor, it returns an empty list.
 
-**Conceptual example:**
-
-> Previous (v2.4.0): "Imports are processed synchronously."
->
-> New (v2.4.1): "Imports are processed asynchronously."
->
-> **Result:** The previous statement about synchronous processing is now stale; the new version indicates asynchronous processing.
-
-This is a simple deterministic comparison — the application does not perform advanced semantic analysis or RAG-based detection.
+Conceptually, if a previous version says “Imports are processed synchronously” and the new version says “Imports are processed asynchronously,” the old statement is returned as a possible stale statement because that package value changed. The implementation does not perform advanced semantic analysis.
 
 ## 13. Setup
 
-**Prerequisites:** Node.js installed.
+**Prerequisite:** Node.js and npm.
 
-1. **Clone repository:**
+1. Clone the repository:
+
    ```bash
-   git clone <repository-url>
-   cd release-readiness-assistant
+   git clone https://github.com/nivijha/release-readiness-assisstant.git
+   cd release-readiness-assisstant
    ```
 
-2. **Install frontend dependencies:**
+2. Install frontend and backend dependencies in separate terminals or sequentially:
+
    ```bash
    cd client
    npm install
-   ```
-
-3. **Install backend dependencies:**
-   ```bash
-   cd server
+   cd ../server
    npm install
    ```
 
-4. **Configure environment variables:**
-   Create a `.env` file in the `server` directory with:
-   ```
-   PORT=5000
-   MONGODB_URI=your_mongodb_connection_string
-   GEMINI_API_KEY=your_gemini_api_key
-   ```
+3. Configure environment variables. The backend loads `server/.env`; Vite reads its frontend environment from the `client` directory. See [Environment Variables](#14-environment-variables) and the root `.env.example`.
 
-5. **Start backend:**
+4. Start the backend:
+
    ```bash
    cd server
    npm run dev
    ```
 
-6. **Start frontend:**
+5. Start the frontend in another terminal:
+
    ```bash
    cd client
    npm run dev
    ```
 
-The application will be available at `http://localhost:5173` (frontend) and `http://localhost:5000` (backend).
+Vite prints the frontend URL when started (normally `http://localhost:5173`). The backend defaults to port `5000`; its health endpoint is `http://localhost:5000/api/health`. MongoDB operations require a usable `MONGODB_URI`; AI analysis additionally requires a usable `GEMINI_API_KEY`.
+
+To build the frontend for production:
+
+```bash
+cd client
+npm run build
+```
+
+There is no root-level package manifest or backend build script in the repository.
 
 ## 14. Environment Variables
 
-The following environment variables are **required**:
+| Variable | Read by | Purpose |
+|---|---|---|
+| `PORT` | Backend | Express listen port; defaults to `5000` |
+| `MONGODB_URI` | Backend | MongoDB connection string |
+| `GEMINI_API_KEY` | Backend | Key for server-side Gemini analysis |
+| `VITE_API_BASE_URL` | Frontend build/dev | Axios API base URL; defaults to `http://localhost:5000/api` |
 
-| Variable | Purpose |
-|----------|---------|
-| `PORT` | Server port (default: 5000) |
-| `MONGODB_URI` | MongoDB connection string |
-| `GEMINI_API_KEY` | Gemini API key for AI analysis |
-| `VITE_API_URL` | Base API URL (frontend proxies to this) |
-
-**No real secrets or credentials should be committed.** Use placeholders.
+The root `.env.example` lists variable names with safe placeholders. Copy the backend variables to `server/.env` and the frontend variable to a Vite environment file under `client/`. Do not commit populated environment files or credentials.
 
 ## 15. Testing and Verification
 
-The following **actual** behaviors were verified:
+**Automated tests:** No test files or `test` script are present in the client or server package manifests. The client has a production build command; the server package has a development command but no build/test command.
 
-- **Required-field validation** — All 7 required fields must be present; validation errors are shown if missing.
-- **Release creation** — A new release is persisted to MongoDB with status "draft".
-- **AI analysis** — Gemini AI produces structured analysis when given valid release data.
-- **Review/save** — User-edited summaries are saved; AI analysis is preserved.
-- **Approve/reject** — Status changes to "approved" or "rejected" with proper timestamps.
-- **Version creation** — A new version is created from an approved release; original remains untouched.
-- **Version persistence** — New versions are saved with correct `releaseSeriesId`, `previousReleaseId`, and `status: "draft"`.
-- **Version comparison** — Two versions can be compared; changed/unchanged fields are identified.
-- **Stale statement detection** — Differences between versions are noted.
+**Recorded verification:** The frontend production build was run during development and completed successfully. Prior task notes also record backend syntax checks and a focused mocked version-history query/workflow check. Those focused checks are not committed as a repeatable automated test suite.
 
-**Manual browser verification** was performed to confirm:
-- Frontend build succeeds with zero errors
-- All API endpoints return expected responses
-- MongoDB document structure is correct
-- UI states (draft, analyzed, approved, rejected) behave correctly
-- Create new version workflow preserves original release
-- Version comparison identifies changed/unchanged fields
+**Manual/interactive verification:** The source and route wiring were inspected while implementing and documenting the workflow. A complete live, deployed browser-to-database run is not established by the repository, so this README does not claim one. In particular, populated external release data and deployment service availability must be verified in the evaluator's environment.
 
-No automated test framework (e.g., Jest, Cypress) is configured in this project. Verification was primarily manual through browser testing and build checks.
+For local verification, run `npm run build` in `client`, start the server with the required environment configured, and exercise the workflow using a test MongoDB database and a valid Gemini key. Avoid running demo writes against production data.
 
 ## 16. Logging and Error Handling
 
-**Backend:**
-- MongoDB connection errors are logged to console
-- AI API errors (upstreamStatus, statusCode) are captured and returned as appropriate HTTP error responses
-- Validation failures return 400 with detail
-- Not-found releases return 404
-- Duplicate version creation returns 409
-- All errors include a `success: false` flag and message
-
-**Frontend:**
-- Loading states (`isValidating`, `isCreating`, `isAnalyzing`, `isSavingReview`, `isApproving`, `isRejecting`, `isCreatingVersion`, `comparisonLoading`) provide UI feedback
-- Error messages appear in red toast/snackbar patterns
-- Form inputs are disabled during pending operations
-- Button availability depends on release status (e.g., [Create New Version] is only enabled for approved releases)
+- The backend logs server startup and MongoDB connection success/failure to the console.
+- Controller operations log selected failures and some analysis/review readiness information.
+- The AI service logs Gemini request/upstream errors and returns analysis errors through the API.
+- API handlers return JSON error messages and relevant HTTP error statuses for validation, unavailable database, not-found records, invalid workflow state, and AI failures.
+- The frontend displays operation-specific loading, validation, empty, and error states. Some request failures are also logged to the browser console.
 
 ## 17. Deployment
 
-The application is designed to be deployed as follows:
+The tracked repository does not include a Vercel, Render, Fly.io, Netlify, Docker, or other provider deployment manifest, nor does it contain a verified hosted application URL. Therefore a specific deployed architecture cannot be confirmed from the codebase.
 
-**Frontend:**
-- Vercel or any static host that serves the Vite build artifacts
-
-**Backend:**
-- Render, Fly.io, or any Node.js host
-
-**Database:**
-- MongoDB Atlas (cloud) or self-hosted MongoDB
-
-**AI:**
-- Gemini API (requires API key configuration)
-
-The hosted application must remain available for evaluation purposes.
+The application can be deployed as a Vite static frontend and a Node/Express backend configured to reach MongoDB and the Gemini API. The frontend must be built with `VITE_API_BASE_URL` pointing to the deployed API base, and the backend must have `PORT`, `MONGODB_URI`, and `GEMINI_API_KEY` configured in its hosting environment. Supply the hosted evaluation URL separately; none is documented here.
 
 ## 18. Completed Scope
 
-The following scope from the assignment has been **completed**:
-
-- Priority 1: Human review workflow (editable summaries, save review, approve/reject)
-- Priority 2: Version preservation / version history (releaseSeriesId, previousReleaseId, create new version, version history)
-- Priority 3: Version comparison (compare two releases, identify changed/unchanged fields)
-
-Additional implemented capabilities:
-- Deterministic release-package validation
-- Gemini AI analysis
-- Release creation and persistence
-- Analysis, review, approval, and rejection workflows
-- Data preservation across version creation
-- Backward compatibility with existing releases
+The source implements the structured release package, deterministic validation, MongoDB-backed release operations, Gemini analysis, editable/saved review summaries, human approval/rejection, version creation/history, package comparison, stale-statement candidates, and the approved final reviewed brief. Version history is limited to the five most recent releases returned by the backend.
 
 ## 19. Excluded Scope
 
-The following functionality was **intentionally excluded** to maintain the assignment's focused scope:
-
-- **Git integration** — No Git operations, commit history, or version control integration
-- **Jira integration** — No Jira issue tracking or integration
-- **Authentication** — No user authentication, login, or authorization
-- **RAG / vector database** — No retrieval-augmented generation or vector similarity search
-- **Redis** — No caching or session storage
-- **Docker** — No containerization
-- **Automated deployment/rollback** — No CI/CD pipelines or deployment scripts
-- **Public changelog** — No public-facing change log
-- **Microservices** — No service decomposition
-
-These were excluded to keep the implementation focused on the required release-readiness workflow.
+The repository does not implement Git or Jira integration, authentication/authorization, RAG or a vector database, Redis, Docker/container orchestration, microservices, an automated deployment/rollback pipeline, or a public changelog. These are outside the implemented release-readiness workflow.
 
 ## 20. Known Limitations
 
-The following **real limitations** apply:
-
-- **Gemini API quota/availability** — The application depends on the Gemini API being configured and available; if the API key is missing or the service is unavailable, AI analysis cannot be completed.
-- **No authentication** — Any user can create, analyze, and approve/reject releases; there is no role-based access control.
-- **No Git/Jira integration** — Release data is not synchronized with any version control or issue-tracking system.
-- **Limited stale-statement detection** — Stale statement detection is based on simple deterministic comparison between versions; it does not perform advanced semantic analysis.
-- **Deployment dependent on external services** — The application requires MongoDB and Gemini API to be operational; without them, core features cannot function.
+- **External dependencies:** Persistent operations require a reachable MongoDB instance. AI analysis requires Gemini credentials and service availability/quota.
+- **No authentication:** The API has no user authentication or role-based authorization.
+- **No tracked deployment target:** A host URL/provider cannot be inferred from the checked-in configuration.
+- **Release date/title persistence:** The form collects a release date, but `releaseDate` is absent from the active schema and create/update handlers. The initial create handler also does not assign the submitted title, although the schema has a `title` field and draft updates can assign it.
+- **Simple change detection:** Version comparison and stale candidates use exact value comparison after converting arrays to newline-separated strings; they do not determine semantic equivalence or whether a changed statement is truly stale.
+- **AI output needs review:** The prompt requests evidence-based output, but a user should verify generated claims before saving a review and making a release decision.
+- **No automated test suite:** The repository does not contain a configured unit/integration test suite.
 
 ## 21. Demo Instructions
 
-For evaluators:
+Use a test MongoDB database and a server configured with a Gemini key. Open the locally running UI or the evaluation URL supplied separately:
 
-1. Open the hosted application at the provided URL
-2. Enter a sample release package (version, title, release date, completed features, bug fixes, changed behavior, QA summary, known limitations, migration notes, affected user groups)
-3. Click **Validate Release** — ensure all 7 required sections are filled
-4. Click **Create Release** — the release is saved with status "draft"
-5. Click **Analyze Release** — AI analysis appears in the panels
-6. Review the **Internal Summary** and **Stakeholder Summary** — editable textareas appear
-7. Edit the summaries if desired, then click **Save Review**
-8. Click **Approve Release** — status changes to "APPROVED"
-9. Click **Create New Version** — enter a new version number (e.g., "v2.4.1")
-10. The new version appears as "DRAFT"; the original release remains "APPROVED"
-11. Click **Compare Versions** — select the two versions to compare
-12. Changed package sections are highlighted; unchanged sections show as unchanged
-13. View the final reviewed brief after approval
-
-Use the actual UI element names from the application (Release Form, Validate, Create Release, Analyze Release, Internal Summary, Stakeholder Summary, Save Review, Approve Release, Reject Release, Create New Version, Version History, Version Comparison).
+1. Enter the seven required release package sections.
+2. Click **Validate Release**, then **Create Release**.
+3. Click **Analyze Release**.
+4. Review the impact, missing information, unsupported claims, risks, and summaries.
+5. Edit the internal and stakeholder summaries and click **Save Review**.
+6. Click **Approve Release** or **Reject Release**.
+7. For an approved release, click **Create New Version**. The backend creates a new draft with an automatically selected minor version.
+8. Edit and save the new draft, then analyze/review it as needed.
+9. Use **Version History** and **Version Comparison** to inspect the series and compare two versions.
+10. Review **Stale Statement Detection** for sections that differ from the linked predecessor.
+11. After approval, inspect **FINAL REVIEWED BRIEF**.

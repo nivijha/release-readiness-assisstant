@@ -172,8 +172,9 @@ const Dashboard = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [isSavingPackage, setIsSavingPackage] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isCreatingVersion, setIsCreatingVersion] = useState(false);
-  const [showCreateVersion, setShowCreateVersion] = useState(false);
+  const [isStartingVersionRelease, setIsStartingVersionRelease] =
+    useState(false);
+  const [versionSourceRelease, setVersionSourceRelease] = useState(null);
   const [activeReleaseError, setActiveReleaseError] = useState("");
   const [activeReleaseLoaded, setActiveReleaseLoaded] = useState(false);
   const currentStatus = createdRelease?.status || releaseStatus || "";
@@ -301,7 +302,14 @@ const Dashboard = () => {
     setCreateError("");
 
     try {
-      const body = getResponseBody(await api.createRelease(releaseData));
+      const body = getResponseBody(
+        await api.createRelease({
+          ...releaseData,
+          ...(versionSourceRelease?.releaseId
+            ? { previousReleaseId: versionSourceRelease.releaseId }
+            : {}),
+        })
+      );
       const release = body?.release || body?.data?.release;
 
       if (body?.success === false || !isRecord(release)) {
@@ -324,6 +332,8 @@ const Dashboard = () => {
       setReviewSaved(false);
       setReleaseStatus("draft");
       setValidationResult(validationResult);
+      setVersionSourceRelease(null);
+      setIsStartingVersionRelease(false);
     } catch (error) {
       setCreateError(getErrorMessage(error, "Failed to create release."));
     } finally {
@@ -498,51 +508,60 @@ const handleRejectRelease = async () => {
     }
   };
 
-  const handleCreateVersion = async () => {
-    if (
-      !createdRelease?.releaseId ||
-      !isApproved ||
-      isCreatingVersion
-    ) {
+  const handleStartNewVersionRelease = () => {
+    if (!createdRelease?.releaseId || !isApproved || isStartingVersionRelease) {
       return;
     }
 
-    setIsCreatingVersion(true);
-    try {
-      const result = getResponseBody(
-        await api.createNewVersion(createdRelease.releaseId)
-      );
-      if (result?.success === false || !isRecord(result?.release)) {
-        throw new Error(result?.message || "Failed to create new version.");
-      }
-      // Switch UI to the new version by resetting state
-      setCreatedRelease(result.release);
-      setAnalysis(null);
-      setValidationError("");
-      setCreateError("");
-      setValidationResult(null);
-      setEditedInternalSummary("");
-      setEditedStakeholderSummary("");
-      setReviewSaved(false);
-      setReleaseStatus("draft");
-      setAnalysisError("");
-      setShowCreateVersion(false);
-      const validationBody = getResponseBody(
-        await api.validateRelease(toReleaseFormData(result.release))
-      );
-      setValidationResult(
-        validationBody?.validation || validationBody?.data?.validation || null
-      );
-    } catch (error) {
-      setAnalysisError(
-        getErrorMessage(error, "Failed to create new version.")
-      );
-    } finally {
-      setIsCreatingVersion(false);
-    }
+    setVersionSourceRelease(createdRelease);
+    setCreatedRelease(null);
+    setIsStartingVersionRelease(true);
+    setValidationResult(null);
+    setValidationError("");
+    setCreateError("");
+    setAnalysis(null);
+    setAnalysisError("");
+    setEditedInternalSummary("");
+    setEditedStakeholderSummary("");
+    setReviewSaved(false);
+    setReleaseStatus("draft");
+    setRejectionReason("");
+    setActiveReleaseError("");
   };
 
-  const footerMessage = analysis
+  const handleCancelNewVersionRelease = () => {
+    if (!versionSourceRelease) return;
+
+    setCreatedRelease(versionSourceRelease);
+    setVersionSourceRelease(null);
+    setIsStartingVersionRelease(false);
+    setValidationResult(null);
+    setValidationError("");
+    setCreateError("");
+    setAnalysisError("");
+    setAnalysis(
+      versionSourceRelease.analysis
+        ? normalizeAnalysis(versionSourceRelease.analysis)
+        : null
+    );
+    setEditedInternalSummary(
+      versionSourceRelease.review?.internalSummary ||
+        versionSourceRelease.analysis?.internalSummary?.text ||
+        ""
+    );
+    setEditedStakeholderSummary(
+      versionSourceRelease.review?.stakeholderSummary ||
+        versionSourceRelease.analysis?.stakeholderSummary?.text ||
+        ""
+    );
+    setReviewSaved(Boolean(versionSourceRelease.review?.reviewedAt));
+    setReleaseStatus(versionSourceRelease.status || "draft");
+    setRejectionReason(versionSourceRelease.review?.rejectionReason || "");
+  };
+
+  const footerMessage = isStartingVersionRelease
+    ? "Enter the new release package, validate it, then create the draft."
+    : analysis
     ? "Review the generated analysis before approving the release."
     : createdRelease
       ? "Release created as draft. Analyze the release to generate AI-powered insights."
@@ -602,11 +621,41 @@ const handleRejectRelease = async () => {
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="grid items-start gap-6 lg:grid-cols-2">
             <div>
-              <h2 className="mb-3 text-lg font-semibold text-gray-900">
-                Release Package
-              </h2>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    {isStartingVersionRelease ? "New Release" : "Release Package"}
+                  </h2>
+                  {isStartingVersionRelease && (
+                    <p className="mt-1 text-sm text-gray-600">
+                      Create a new release version
+                    </p>
+                  )}
+                </div>
+                {isStartingVersionRelease ? (
+                  <button
+                    type="button"
+                    onClick={handleCancelNewVersionRelease}
+                    className="min-h-10 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                  >
+                    Cancel
+                  </button>
+                ) : createdRelease && isApproved ? (
+                  <button
+                    type="button"
+                    onClick={handleStartNewVersionRelease}
+                    className="min-h-11 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                  >
+                    + New Version Release
+                  </button>
+                ) : null}
+              </div>
               <ReleaseForm
-                key={createdRelease?.releaseId || "new-release"}
+                key={
+                  isStartingVersionRelease
+                    ? "new-version-release"
+                    : createdRelease?.releaseId || "new-release"
+                }
                 validationResult={validationResult}
                 createdRelease={createdRelease}
                 validationError={validationError}
@@ -635,7 +684,7 @@ const handleRejectRelease = async () => {
                 analysisError={analysisError}
               />
 
-              {statusDisplay()}
+              {!isStartingVersionRelease && createdRelease && statusDisplay()}
 
                     {activeReleaseError && (
                       <p
@@ -718,42 +767,19 @@ const handleRejectRelease = async () => {
                 </div>
               )}
 
-              {createdRelease && (
-                <div className="mt-5 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                  <button
-                    onClick={() => setShowCreateVersion(true)}
-                    disabled={!createdRelease || !isApproved || isCreatingVersion}
-                    className="min-h-11 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Create New Version
-                  </button>
-
-                  {showCreateVersion && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        onClick={handleCreateVersion}
-                        disabled={isCreatingVersion}
-                        className="min-h-11 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {isCreatingVersion ? "Creating..." : "Create Version"}
-                      </button>
-                      <button
-                        onClick={() => setShowCreateVersion(false)}
-                        className="min-h-11 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {activeReleaseLoaded && createdRelease?.releaseId && (
+              {activeReleaseLoaded &&
+                (createdRelease?.releaseId ||
+                  (isStartingVersionRelease &&
+                    versionSourceRelease?.releaseId)) && (
                 <VersionHistory
-                  key={createdRelease.releaseId}
-                  releaseId={createdRelease.releaseId}
-                  activeReleaseId={createdRelease.releaseId}
-                  refreshKey={createdRelease.status}
+                  key={`${createdRelease?.releaseId || versionSourceRelease.releaseId}:${isStartingVersionRelease ? "new" : createdRelease.status}`}
+                  releaseId={
+                    createdRelease?.releaseId || versionSourceRelease.releaseId
+                  }
+                  activeReleaseId={
+                    createdRelease?.releaseId || versionSourceRelease.releaseId
+                  }
+                  refreshKey={createdRelease?.status || "new"}
                 />
               )}
               {createdRelease && (

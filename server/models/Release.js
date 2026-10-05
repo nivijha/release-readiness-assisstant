@@ -62,6 +62,10 @@ const releaseSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    releaseDate: {
+      type: String,
+      default: "",
+    },
     package: {
       completedFeatures: [{ type: String }],
       bugFixes: [{ type: String }],
