@@ -637,55 +637,14 @@ const handleRejectRelease = async () => {
 
               {statusDisplay()}
 
-      {activeReleaseError && (
-        <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          {activeReleaseError}
-        </p>
-      )}
-
-      {createdRelease && (
-        <div className="mt-5 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <button
-            onClick={() => setShowCreateVersion(true)}
-            disabled={!createdRelease || !isApproved || isCreatingVersion}
-            className="min-h-11 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Create New Version
-          </button>
-
-          {showCreateVersion && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                onClick={handleCreateVersion}
-                disabled={isCreatingVersion}
-                className="min-h-11 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isCreatingVersion ? "Creating..." : "Create Version"}
-              </button>
-              <button
-                onClick={() => setShowCreateVersion(false)}
-                className="min-h-11 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-              >
-                Cancel
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {activeReleaseLoaded && createdRelease?.releaseId && (
-        <VersionHistory
-          key={createdRelease.releaseId}
-          releaseId={createdRelease.releaseId}
-          activeReleaseId={createdRelease.releaseId}
-          refreshKey={createdRelease.status}
-        />
-      )}
-      {createdRelease && <StaleStatementDetection
-        key={createdRelease?.releaseId || "new-release"}
-        releaseId={createdRelease?.releaseId}
-      />}
-      {createdRelease && <FinalReviewedBrief release={createdRelease} />}
+                    {activeReleaseError && (
+                      <p
+                        role="alert"
+                        className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                      >
+                        {activeReleaseError}
+                      </p>
+                    )}
 
       {analysis && releaseStatus !== "approved" && releaseStatus !== "rejected" && (
                 <section className="mt-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
@@ -758,6 +717,52 @@ const handleRejectRelease = async () => {
                   </button>
                 </div>
               )}
+
+              {createdRelease && (
+                <div className="mt-5 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                  <button
+                    onClick={() => setShowCreateVersion(true)}
+                    disabled={!createdRelease || !isApproved || isCreatingVersion}
+                    className="min-h-11 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Create New Version
+                  </button>
+
+                  {showCreateVersion && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        onClick={handleCreateVersion}
+                        disabled={isCreatingVersion}
+                        className="min-h-11 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isCreatingVersion ? "Creating..." : "Create Version"}
+                      </button>
+                      <button
+                        onClick={() => setShowCreateVersion(false)}
+                        className="min-h-11 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeReleaseLoaded && createdRelease?.releaseId && (
+                <VersionHistory
+                  key={createdRelease.releaseId}
+                  releaseId={createdRelease.releaseId}
+                  activeReleaseId={createdRelease.releaseId}
+                  refreshKey={createdRelease.status}
+                />
+              )}
+              {createdRelease && (
+                <StaleStatementDetection
+                  key={createdRelease.releaseId || "new-release"}
+                  releaseId={createdRelease.releaseId}
+                />
+              )}
+              {createdRelease && <FinalReviewedBrief release={createdRelease} />}
 
             </div>
           </div>
