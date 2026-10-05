@@ -628,6 +628,7 @@ export const getReleaseVersions = async (req, res) => {
       ],
     })
       .sort({ createdAt: -1 })
+      .limit(5)
       .select("releaseId version title status createdAt updatedAt previousReleaseId");
     const versions = uniqueVersions(releases, sourceRelease.releaseId);
 

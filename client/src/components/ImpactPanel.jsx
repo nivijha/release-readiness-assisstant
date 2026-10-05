@@ -6,8 +6,8 @@ const ImpactPanel = ({ analysis }) => {
     : [];
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <h2 className="text-xl font-medium text-gray-900 mb-4">
+    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+      <h2 className="mb-4 text-base font-semibold text-gray-900">
         User Impact Analysis
       </h2>
 
@@ -39,11 +39,11 @@ const ImpactPanel = ({ analysis }) => {
                 : "bg-green-100 text-green-800";
 
             return (
-              <div key={index} className="flex items-start">
+              <div key={index} className="flex items-start rounded-lg border border-gray-200 bg-white p-3">
                 <span
-                  className={`w-3 h-3 rounded-full ${impactClass} flex-shrink-0 mt-1`}
+                  className={`mt-1 h-3 w-3 flex-shrink-0 rounded-full ${impactClass}`}
                 />
-                <div className="ml-3 flex-1">
+                <div className="ml-3 min-w-0 flex-1">
                   <p className="font-medium text-gray-900">
                     {itemName}
                   </p>

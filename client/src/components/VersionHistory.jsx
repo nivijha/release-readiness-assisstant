@@ -32,7 +32,7 @@ const getUniqueVersions = (releases, activeReleaseId) => {
     }
   });
 
-  return [...versionsByLabel.values()];
+  return [...versionsByLabel.values()].slice(0, 5);
 };
 
 const VersionHistory = ({ releaseId, activeReleaseId, refreshKey }) => {
@@ -129,12 +129,22 @@ const VersionHistory = ({ releaseId, activeReleaseId, refreshKey }) => {
   };
 
   if (loading) {
-    return <p className="text-sm text-gray-500">Loading version history...</p>;
+    return (
+      <section
+        aria-live="polite"
+        className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm"
+      >
+        <h3 className="mb-3 text-xl font-semibold text-gray-900">
+          Version History
+        </h3>
+        <p className="text-sm text-gray-500">Loading version history...</p>
+      </section>
+    );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-6 mt-6">
-      <h3 className="text-xl font-medium text-gray-900 mb-4">Version History</h3>
+    <section className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+      <h3 className="mb-4 text-xl font-semibold text-gray-900">Version History</h3>
       {historyError && (
         <p role="alert" className="mb-4 text-sm text-red-700">
           {historyError}
@@ -144,26 +154,32 @@ const VersionHistory = ({ releaseId, activeReleaseId, refreshKey }) => {
         <p className="text-sm text-gray-500">No version history found.</p>
       ) : (
         <>
-          <div className="space-y-2 text-sm">
+          <div className="space-y-2">
             {versions.map((v) => (
               <div
                 key={v.releaseId}
-                className="flex items-center justify-between p-2 rounded-md border border-gray-200"
+                className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-4 py-3"
               >
-                <span className="text-gray-700">
-                  {v.version} {v.status.toUpperCase()}
+                <span className="font-medium text-gray-900">
+                  {v.version}
                 </span>
-                {v.previousReleaseId && (
-                  <span className="text-xs text-gray-500">
-                    ← {v.previousReleaseId.slice(-6)}
-                  </span>
-                )}
+                <span
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${
+                    v.status === "approved"
+                      ? "bg-green-100 text-green-800"
+                      : v.status === "rejected"
+                        ? "bg-red-100 text-red-800"
+                        : "bg-blue-100 text-blue-800"
+                  }`}
+                >
+                  {v.status}
+                </span>
               </div>
             ))}
           </div>
 
           <section className="mt-6 border-t border-gray-200 pt-5">
-            <h4 className="text-lg font-medium text-gray-900 mb-4">
+            <h4 className="mb-4 text-lg font-semibold text-gray-900">
               Version Comparison
             </h4>
             {versions.length < 2 ? (
@@ -173,7 +189,7 @@ const VersionHistory = ({ releaseId, activeReleaseId, refreshKey }) => {
             ) : (
               <div className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-semibold text-gray-700">
                     Compare
                     <select
                       value={oldReleaseId}
@@ -181,7 +197,7 @@ const VersionHistory = ({ releaseId, activeReleaseId, refreshKey }) => {
                         setOldReleaseId(event.target.value);
                         setComparison(null);
                       }}
-                      className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="mt-1 block min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-normal shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                     >
                       {versions.map((version) => (
                         <option key={version.releaseId} value={version.releaseId}>
@@ -190,7 +206,7 @@ const VersionHistory = ({ releaseId, activeReleaseId, refreshKey }) => {
                       ))}
                     </select>
                   </label>
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-semibold text-gray-700">
                     With
                     <select
                       value={newReleaseId}
@@ -198,7 +214,7 @@ const VersionHistory = ({ releaseId, activeReleaseId, refreshKey }) => {
                         setNewReleaseId(event.target.value);
                         setComparison(null);
                       }}
-                      className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="mt-1 block min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-normal shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                     >
                       {versions.map((version) => (
                         <option key={version.releaseId} value={version.releaseId}>
@@ -217,7 +233,7 @@ const VersionHistory = ({ releaseId, activeReleaseId, refreshKey }) => {
                     oldReleaseId === newReleaseId ||
                     comparisonLoading
                   }
-                  className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="min-h-11 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {comparisonLoading ? "Comparing..." : "Compare Versions"}
                 </button>
@@ -232,7 +248,7 @@ const VersionHistory = ({ releaseId, activeReleaseId, refreshKey }) => {
 
           {comparison && (
             <section className="mt-6 border-t border-gray-200 pt-5">
-              <h4 className="text-lg font-medium text-gray-900 mb-4">
+              <h4 className="mb-4 text-lg font-semibold text-gray-900">
                 {comparison.oldVersion} → {comparison.newVersion}
               </h4>
               <div className="space-y-3">
@@ -241,8 +257,8 @@ const VersionHistory = ({ releaseId, activeReleaseId, refreshKey }) => {
                     key={section.field}
                     className={`rounded-md border p-4 ${
                       section.changed
-                        ? "border-red-300 bg-red-50"
-                        : "border-green-200 bg-green-50"
+                        ? "border-amber-300 bg-amber-50"
+                          : "border-green-200 bg-green-50/70"
                     }`}
                   >
                     <h5 className="font-medium text-gray-900">
@@ -262,8 +278,8 @@ const VersionHistory = ({ releaseId, activeReleaseId, refreshKey }) => {
                         <p className="whitespace-pre-wrap break-words text-sm text-gray-800">
                           {section.newValue || "—"}
                         </p>
-                        <p className="mt-3 text-sm font-semibold text-red-700">
-                          CHANGED
+                        <p className="mt-3 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-900">
+                          ⚠ Changed
                         </p>
                       </>
                     ) : (
@@ -278,7 +294,7 @@ const VersionHistory = ({ releaseId, activeReleaseId, refreshKey }) => {
           )}
         </>
       )}
-    </div>
+    </section>
   );
 };
 

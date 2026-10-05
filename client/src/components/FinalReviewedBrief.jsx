@@ -18,7 +18,7 @@ const FinalReviewedBrief = ({ release }) => {
 
   if (release?.status !== "approved") {
     return (
-      <p className="mt-6 rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600 shadow">
+      <p className="mt-6 rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-600 shadow-sm">
         Final reviewed brief is available after approval.
       </p>
     );
@@ -86,7 +86,7 @@ const FinalReviewedBrief = ({ release }) => {
   return (
     <section
       aria-labelledby="final-reviewed-brief-title"
-      className="mt-6 rounded-lg border border-green-200 bg-white p-6 shadow"
+      className="mt-6 rounded-xl border border-green-200 bg-white p-5 shadow-sm sm:p-7"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2
@@ -111,15 +111,15 @@ const FinalReviewedBrief = ({ release }) => {
       </div>
 
       <div className="mt-5 space-y-5">
-        <section>
-          <h3 className="mb-2 font-medium text-gray-900">INTERNAL SUMMARY</h3>
+        <section className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <h3 className="mb-2 text-sm font-semibold tracking-wide text-gray-900">INTERNAL SUMMARY</h3>
           <p className="whitespace-pre-wrap text-sm text-gray-700">
             {textOrEmpty(review.internalSummary) || "No saved internal summary."}
           </p>
         </section>
 
-        <section>
-          <h3 className="mb-2 font-medium text-gray-900">
+        <section className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <h3 className="mb-2 text-sm font-semibold tracking-wide text-gray-900">
             STAKEHOLDER SUMMARY
           </h3>
           <p className="whitespace-pre-wrap text-sm text-gray-700">
@@ -128,8 +128,8 @@ const FinalReviewedBrief = ({ release }) => {
           </p>
         </section>
 
-        <section>
-          <h3 className="mb-2 font-medium text-gray-900">USER IMPACT</h3>
+        <section className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <h3 className="mb-2 text-sm font-semibold tracking-wide text-gray-900">USER IMPACT</h3>
           {impactAnalysis.length ? (
             <div className="space-y-3">
               {impactAnalysis.map((entry, index) => {
@@ -175,8 +175,8 @@ const FinalReviewedBrief = ({ release }) => {
           )}
         </section>
 
-        <section>
-          <h3 className="mb-2 font-medium text-gray-900">RISKS</h3>
+        <section className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <h3 className="mb-2 text-sm font-semibold tracking-wide text-gray-900">RISKS</h3>
           {risks.length ? (
             <div className="space-y-3">
               {risks.map((entry, index) => {
@@ -203,20 +203,20 @@ const FinalReviewedBrief = ({ release }) => {
           )}
         </section>
 
-        <section>
-          <h3 className="mb-2 font-medium text-gray-900">KNOWN LIMITATIONS</h3>
+        <section className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <h3 className="mb-2 text-sm font-semibold tracking-wide text-gray-900">KNOWN LIMITATIONS</h3>
           {renderList(knownLimitations, "No known limitations.")}
         </section>
 
-        <section>
-          <h3 className="mb-2 font-medium text-gray-900">
+        <section className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <h3 className="mb-2 text-sm font-semibold tracking-wide text-gray-900">
             MIGRATION / CONFIGURATION NOTES
           </h3>
           {renderList(migrationNotes, "No migration or configuration notes.")}
         </section>
 
-        <section>
-          <h3 className="mb-2 font-medium text-gray-900">EVIDENCE</h3>
+        <section className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <h3 className="mb-2 text-sm font-semibold tracking-wide text-gray-900">EVIDENCE</h3>
           {evidence.length ? (
             <ul className="list-disc space-y-1 pl-5 text-sm text-gray-700">
               {evidence.map((item, index) => (

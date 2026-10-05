@@ -10,8 +10,8 @@ const AnalysisListPanel = ({
   detailFields,
   emptyMessage,
 }) => (
-  <section className="rounded-lg border border-gray-200 p-4">
-    <h3 className="font-medium text-gray-900 mb-3">{title}</h3>
+  <section className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+  <h3 className="mb-3 font-semibold text-gray-900">{title}</h3>
     {items.length === 0 ? (
       <p className="text-sm text-gray-500">{emptyMessage}</p>
     ) : (
@@ -59,8 +59,8 @@ const ValidationPanel = ({
     : [];
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <h2 className="text-xl font-medium text-gray-900 mb-4">
+    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+      <h2 className="mb-4 text-xl font-semibold text-gray-900">
         Release Readiness
       </h2>
 

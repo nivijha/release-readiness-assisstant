@@ -55,8 +55,8 @@ const StaleStatementDetection = ({ releaseId }) => {
   }, [releaseId]);
 
   return (
-    <section className="mt-6 rounded-lg bg-white p-6 shadow">
-      <h3 className="mb-4 text-xl font-medium text-gray-900">
+    <section className="mt-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+      <h3 className="mb-4 text-xl font-semibold text-gray-900">
         Stale Statement Detection
       </h3>
       {loading ? (

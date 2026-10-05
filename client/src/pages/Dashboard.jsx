@@ -82,16 +82,12 @@ const InternalSummary = ({
 
   return (
     <div>
-      <h3 className="text-semibold text-gray-900 mb-2">
+      <h3 className="mb-2 text-base font-semibold text-gray-900">
         Internal Summary
       </h3>
       <textarea
         rows={4}
-        className="
-          w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none
-          focus:ring-2 focus:ring-indigo-500 resize-none text-sm
-          bg-gray-50
-        "
+        className="min-h-28 w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-6 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
         value={editedValue || internalSummary}
         onChange={(e) => setEditedValue(e.target.value)}
         placeholder="Technical summary for developers, QA, and release managers..."
@@ -131,16 +127,12 @@ const StakeholderSummary = ({
 
   return (
     <div>
-      <h3 className="text-semibold text-gray-900 mb-2">
+      <h3 className="mb-2 text-base font-semibold text-gray-900">
         Stakeholder Summary
       </h3>
       <textarea
         rows={4}
-        className="
-          w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none
-          focus:ring-2 focus:ring-indigo-500 resize-none text-sm
-          bg-gray-50
-        "
+        className="min-h-28 w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-6 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
         value={editedValue || stakeholderSummary}
         onChange={(e) => setEditedValue(e.target.value)}
         placeholder="Client-friendly summary for stakeholders and non-technical users..."
@@ -559,76 +551,62 @@ const handleRejectRelease = async () => {
         : "Complete all required release sections and validate the release.";
 
   const statusDisplay = () => {
-    if (releaseStatus === "approved") {
-      return (
-        <div className="mt-6 p-4 rounded-md bg-green-100 border-green-400">
-          <p className="font-medium text-green-800">
-            ✅ APPROVED
-          </p>
-          <p className="text-sm text-green-600">
-            Release has been approved and is ready for publication.
-          </p>
-        </div>
-      );
-    }
+    const status =
+      releaseStatus === "analyzed" ? "in review" : currentStatus || "draft";
+    const statusClasses =
+      status === "approved"
+        ? "border-green-200 bg-green-50 text-green-800"
+        : status === "rejected"
+          ? "border-red-200 bg-red-50 text-red-800"
+          : status === "in review"
+            ? "border-indigo-200 bg-indigo-50 text-indigo-800"
+            : "border-blue-200 bg-blue-50 text-blue-800";
 
-    if (releaseStatus === "rejected") {
-      return (
-        <div className="mt-6 p-4 rounded-md bg-red-100 border-red-400">
-          <p className="font-medium text-red-800">
-            ❌ REJECTED
-          </p>
-          {rejectionReason && (
-            <p className="text-sm text-red-600">
-              Reason: {rejectionReason}
-            </p>
-          )}
-          <p className="text-sm text-red-600">
-            Release has been rejected.
-          </p>
-        </div>
-      );
-    }
-
-    if (releaseStatus === "analyzed") {
-      return (
-        <div className="mt-6 p-4 rounded-md bg-indigo-100 border-indigo-400">
-          <p className="font-medium text-indigo-800">
-            Analysis Complete — Awaiting Review
-          </p>
-          <p className="text-sm text-indigo-600">
-            AI analysis finished. Review and edit the summaries below.
-          </p>
-        </div>
-      );
-    }
-
-    return null;
+    return (
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        <span
+          className={`rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wide ${statusClasses}`}
+        >
+          {status}
+        </span>
+        {releaseStatus === "analyzed" && (
+          <span className="text-sm text-gray-600">
+            AI analysis is ready for human review.
+          </span>
+        )}
+        {releaseStatus === "rejected" && rejectionReason && (
+          <span className="text-sm text-gray-600">
+            Reason: {rejectionReason}
+          </span>
+        )}
+      </div>
+    );
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="h-16 flex items-center justify-between">
-            <h1 className="text-xl font-semibold text-gray-900">
+      <nav className="border-b border-gray-200 bg-white">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="flex min-h-16 flex-col justify-center gap-1 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <h1 className="text-lg font-semibold text-gray-900 sm:text-xl">
               Release Communication & Readiness Assistant
             </h1>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 sm:text-right">
               Prepare, review, and communicate release changes.
             </p>
           </div>
         </div>
       </nav>
 
-      <main className="py-8">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="grid gap-6 md:grid-cols-2">
+      <main className="py-6 sm:py-8">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="grid items-start gap-6 lg:grid-cols-2">
             <div>
-              <h2 className="text-lg font-medium text-gray-900 mb-4">
+              <h2 className="mb-3 text-lg font-semibold text-gray-900">
                 Release Package
               </h2>
               <ReleaseForm
+                key={createdRelease?.releaseId || "new-release"}
                 validationResult={validationResult}
                 createdRelease={createdRelease}
                 validationError={validationError}
@@ -646,7 +624,7 @@ const handleRejectRelease = async () => {
             </div>
 
             <div>
-              <h2 className="text-lg font-medium text-gray-900 mb-4">
+              <h2 className="mb-3 text-lg font-semibold text-gray-900">
                 Readiness Analysis
               </h2>
               <ValidationPanel
@@ -657,36 +635,36 @@ const handleRejectRelease = async () => {
                 analysisError={analysisError}
               />
 
-{statusDisplay()}
+              {statusDisplay()}
 
       {activeReleaseError && (
-        <p role="alert" className="mt-4 text-sm text-red-700">
+        <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           {activeReleaseError}
         </p>
       )}
 
       {createdRelease && (
-        <div className="mt-4">
+        <div className="mt-5 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <button
             onClick={() => setShowCreateVersion(true)}
             disabled={!createdRelease || !isApproved || isCreatingVersion}
-            className="mb-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="min-h-11 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Create New Version
           </button>
 
           {showCreateVersion && (
-            <div className="mt-3">
+            <div className="mt-3 flex flex-wrap gap-2">
               <button
                 onClick={handleCreateVersion}
                 disabled={isCreatingVersion}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="min-h-11 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isCreatingVersion ? "Creating..." : "Create Version"}
               </button>
               <button
                 onClick={() => setShowCreateVersion(false)}
-                className="mt-2 px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                className="min-h-11 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
               >
                 Cancel
               </button>
@@ -703,18 +681,29 @@ const handleRejectRelease = async () => {
           refreshKey={createdRelease.status}
         />
       )}
-      <StaleStatementDetection
+      {createdRelease && <StaleStatementDetection
         key={createdRelease?.releaseId || "new-release"}
         releaseId={createdRelease?.releaseId}
-      />
+      />}
       {createdRelease && <FinalReviewedBrief release={createdRelease} />}
 
       {analysis && releaseStatus !== "approved" && releaseStatus !== "rejected" && (
-                <div className="mt-6 p-4 rounded-md bg-yellow-50 border-yellow-200">
-                  <h3 className="font-medium text-yellow-800 mb-2">Release Readiness</h3>
-                  <p className="text-sm text-yellow-700">
-                    Analysis completed successfully.
+                <section className="mt-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Human Review
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Review and edit the AI-generated summaries, save your review, then approve or reject.
                   </p>
+                  <div className="my-4 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <span className="rounded-full bg-gray-100 px-3 py-1.5">AI analysis</span>
+                    <span aria-hidden="true">→</span>
+                    <span className="rounded-full bg-gray-100 px-3 py-1.5">Edit</span>
+                    <span aria-hidden="true">→</span>
+                    <span className="rounded-full bg-gray-100 px-3 py-1.5">Save review</span>
+                    <span aria-hidden="true">→</span>
+                    <span className="rounded-full bg-gray-100 px-3 py-1.5">Approve / reject</span>
+                  </div>
                   <InternalSummary
                     analysis={analysis}
                     onSaveReview={handleSaveReview}
@@ -741,75 +730,39 @@ const handleRejectRelease = async () => {
                       )
                     }
                     disabled={isSavingReview}
-                    className="
-                      mt-4 px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-md
-                      hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500
-                      disabled:opacity-50 disabled:cursor-not-allowed
-                    "
+                    className="mt-4 min-h-11 rounded-lg bg-indigo-600 px-5 py-2.5 font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isSavingReview ? "Saving..." : "Save Review"}
                   </button>
-                </div>
+                </section>
               )}
 
               {analysis &&
                 reviewSaved &&
                 releaseStatus !== "approved" &&
                 releaseStatus !== "rejected" && (
-                <div className="mt-6">
+                <div className="mt-4 flex flex-wrap gap-3">
                   <button
                     onClick={handleApproveRelease}
                     disabled={isApproving}
-                    className="
-                      mt-2 px-6 py-2.5 bg-green-600 text-white font-medium rounded-md
-                      hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500
-                      disabled:opacity-50 disabled:cursor-not-allowed
-                    "
+                    className="min-h-11 rounded-lg bg-green-700 px-5 py-2.5 font-semibold text-white transition-colors hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-green-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isApproving ? "Approving..." : "Approve Release"}
                   </button>
                   <button
                     onClick={handleRejectRelease}
                     disabled={isRejecting}
-                    className="
-                      mt-2 px-6 py-2.5 bg-red-600 text-white font-medium rounded-md
-                      hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500
-                      disabled:opacity-50 disabled:cursor-not-allowed
-                    "
+                    className="min-h-11 rounded-lg border border-red-200 bg-white px-5 py-2.5 font-semibold text-red-700 transition-colors hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isRejecting ? "Rejecting..." : "Reject Release"}
                   </button>
                 </div>
               )}
 
-              {releaseStatus === "approved" && (
-                <div className="mt-6 p-4 rounded-md bg-green-100 border-green-400">
-                  <p className="font-medium text-green-800">
-                    ✅ Release approved
-                  </p>
-                  <p className="text-sm text-green-600">
-                    The release has been approved and is ready for publication.
-                  </p>
-                </div>
-              )}
-
-              {releaseStatus === "rejected" && (
-                <div className="mt-6 p-4 rounded-md bg-red-100 border-red-400">
-                  <p className="font-medium text-red-800">
-                    ❌ Release rejected
-                  </p>
-                  {rejectionReason && (
-                    <p className="text-sm text-red-600">Reason: {rejectionReason}</p>
-                  )}
-                  <p className="text-sm text-red-600">
-                    The release has been rejected.
-                  </p>
-                </div>
-              )}
             </div>
           </div>
 
-          <p className="mt-6 text-sm text-gray-500" aria-live="polite">
+          <p className="mt-6 border-t border-gray-200 pt-4 text-sm text-gray-500" aria-live="polite">
             {footerMessage}
           </p>
         </div>

@@ -31,23 +31,23 @@ const BriefPanel = ({ analysis, onSaveReview }) => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <h2 className="text-xl font-medium text-gray-900 mb-4">
+    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+      <h2 className="mb-4 text-base font-semibold text-gray-900">
         Release Summaries
       </h2>
 
       <div className="space-y-4">
         {/* Internal Technical Brief */}
-        <div>
-          <h3 className="text-semibold text-gray-900 mb-2">
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <h3 className="mb-2 font-semibold text-gray-900">
             Internal Summary
           </h3>
 
           <textarea
             rows={4}
             className="
-              w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none
-              focus:ring-2 focus:ring-indigo-500 resize-none text-sm
+              w-full resize-y rounded-lg border border-gray-300 px-3 py-2.5 text-sm leading-6 focus:border-indigo-500
+              focus:outline-none focus:ring-2 focus:ring-indigo-200
               {internalEdited ? '' : 'bg-gray-50'}
             "
             value={internalSummary}
@@ -80,16 +80,16 @@ const BriefPanel = ({ analysis, onSaveReview }) => {
         </div>
 
         {/* Stakeholder / Client Brief */}
-        <div>
-          <h3 className="text-semibold text-gray-900 mb-2">
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <h3 className="mb-2 font-semibold text-gray-900">
             Stakeholder Summary
           </h3>
 
           <textarea
             rows={4}
             className="
-              w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none
-              focus:ring-2 focus:ring-indigo-500 resize-none text-sm
+              w-full resize-y rounded-lg border border-gray-300 px-3 py-2.5 text-sm leading-6 focus:border-indigo-500
+              focus:outline-none focus:ring-2 focus:ring-indigo-200
               {stakeholderEdited ? '' : 'bg-gray-50'}
             "
             value={stakeholderSummary}
